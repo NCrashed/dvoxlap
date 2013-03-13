@@ -13,7 +13,7 @@ const SIZET = size_t.sizeof;
 
 align(1) struct lpoint3d
 {
-	long x, y, z;
+	int x, y, z;
 }
 align(1) struct point3d
 {
@@ -31,27 +31,27 @@ align(1) struct dpoint3d
 // Sprite structures:
 align(1) struct kv6voxtype
 {
-	long col;
+	int col;
 	ushort z;
 	char vis, dir;
 }
 
 align(1) struct kv6data
 {
-	long leng, xsiz, ysiz, zsiz;
+	int leng, xsiz, ysiz, zsiz;
 	float xpiv, ypiv, zpiv;
-	ulong numvoxs;
-	long namoff;
+	uint numvoxs;
+	int namoff;
 	align(4) kv6data *lowermip; // to avoid gc problems
 	align(4) kv6voxtype *vox; // numvoxs*sizeof(kv6voxtype)
-	ulong *xlen; // xsiz*sizeof(long)
+	uint *xlen; // xsiz*sizeof(int)
 	ushort *ylen; // xsiz*ysiz*sizeof(short)
 }
 
 align(1) struct hingertype
 {
 	/// index to parent sprite (-1 = none)
-	long parent;
+	int parent;
 	/// "velcro" point of each object
 	point3d p[2];
 	/// axis of rotation for each object
@@ -64,7 +64,7 @@ align(1) struct hingertype
 
 align(1) struct seqtyp
 {
-	long tim, frm;
+	int tim, frm;
 }
 
 /**
@@ -80,7 +80,7 @@ align(1) struct vx5sprite
 	*	flags bit 1:0 = points to kv6data, 1 = points to kfatype
 	*	flags bit 2:0 = normal, 1 = invisible sprite
 	*/
-	long flags;
+	int flags;
 	/// kv6data.xsiz direction in VXL coordinates
 	static union { point3d s, x; };
 	static union
@@ -93,22 +93,22 @@ align(1) struct vx5sprite
 	/// kv6data.ysiz direction in VXL coordinates
 	static union { point3d h, y; };
 	/// time (in miilliseconds) of KFA animation
-	long kfatim;
+	int kfatim;
 	/// kv6data.zsiz direction in VXL coordinates
 	static union {point3d f, z; };
 	/// make vx5sprite exactly 64 bytes :)
-	long okfatim;
+	int okfatim;
 }
 
 align(1) struct kfatype
 {
-	long numspr, numhin, numfrm, seqnum;
-	long namoff;
+	int numspr, numhin, numfrm, seqnum;
+	int namoff;
 	/// Points to original unconnected KV6 (maybe helpful?)
 	align(4) kv6data *basekv6;
 	align(4) vx5sprite *spr; 		// [numspr]
 	align(4) hingertype *hinge;		// [numhin]
-	align(4) long *hingesort;		// [numhin]
+	align(4) int *hingesort;		// [numhin]
 	align(4) short *frmval;			// [numfrm][numhin]
 	align(4) seqtyp *seq;			// [seqnum]
 }
@@ -124,11 +124,11 @@ align(1) struct flstboxtype //(68 bytes)
 	/// a solid point on piece (x,y,pointer) (don't touch!)
 	lpoint3d chk; 
 	/// indices to start&end of slab list (don't touch!)
-	long i0, i1;
+	int i0, i1;
 	/// bounding box, written bt startfalls
-	long x0, y0, z0, x1, y1, z1;
+	int x0, y0, z0, x1, y1, z1;
 	/// mass of piece, written by startfalls (1 unit per voxel)
-	long mass;
+	int mass;
 	/// centroid of piece, written by startfalls
 	point3d centroid;
 
@@ -137,7 +137,7 @@ align(1) struct flstboxtype //(68 bytes)
 	*	read or write these values after that point. You should use these to
 	*	play an initial sound and track velocity
 	*/
-	long userval, userval2;
+	int userval, userval2;
 }
 
 /// Lighting variables: (used by updatelighting)
@@ -166,17 +166,17 @@ struct vx5_type
 	*/
 	double clipmaxcr;
 	dpoint3d cliphit[3];
-	long cliphitnum;
+	int cliphitnum;
 
 	/// Bounding box written by last set* VXL writing call
-	long minx, miny, minz, maxx, maxy, maxz;
+	int minx, miny, minz, maxx, maxy, maxz;
 
 	/// Falling voxels shared data:
-	long flstnum;
+	int flstnum;
 	flstboxtype flscnt[FLPIECES];
 
 	/// Total count of solid voxels in .VXL map (included unexposed voxels)
-	long globalmass;
+	int globalmass;
 
 	/**
 	*	Temp workspace for KFA animation (hinge angles)
@@ -187,26 +187,26 @@ struct vx5_type
 	//------------------------ DATA provided to VOXLAP5 ------------------------
 
 	/// Opticast variables:
-	long anginc, sideshademode, mipscandist, maxscandist, vxlminpuse, fogcol;
+	int anginc, sideshademode, mipscandist, maxscandist, vxlminpuse, fogcol;
 
 	/// Drawsprite variables:
-	long kv6mipfactor, kv6col;
+	int kv6mipfactor, kv6col;
 
 	/**
 	*	Drawsprite x-plane clipping (reset to 0, (high int) after use!)
 	*	For example min=8, max=12 permits only planes 8,9,10,11 to draw
 	*/
-	long xplanemin, xplanemax;
+	int xplanemin, xplanemax;
 
 	/// Map modification function data:
-	long curcol, currad, curhei;
+	int curcol, currad, curhei;
 	float curpow;
 
 	/// Procedural texture function data:
-	alias long function(lpoint3d *) colfunc_t;
+	alias int function(lpoint3d *) colfunc_t;
 	colfunc_t colfunc;
-	long cen, amount, bpl, xsiz, ysiz, xoru, xorv, picmode;
-	long *pic;
+	int cen, amount, bpl, xsiz, ysiz, xoru, xorv, picmode;
+	int *pic;
 	point3d fpico, fpicu, fpicv, fpicw;
 	lpoint3d pico, picu, picv;
 	float daf;
@@ -215,49 +215,49 @@ struct vx5_type
 	*	Lighting variables: (used by updatelighting)
 	*	0 (default), 1:simple lighting, 2:lightsrc lighting
 	*/
-	long lightmode;
+	int lightmode;
 	/// (?,?,?),128*128,262144
 	lightsrctype lightsrc[MAXLIGHTS];
-	long numlights;
+	int numlights;
 
-	long fallcheck;
+	int fallcheck;
 } 
 vx5_type vx5;
 
 /// Initialization functions:
-extern(C) long initvoxlap();
+extern(C) int initvoxlap();
 
 extern(C) void uninitvoxlap();
 
 /// File related functions:
-extern(C) long loadsxl(const char* , char**, char**, char**);
+extern(C) int loadsxl(const char* , char**, char**, char**);
 extern(C) char* parspr(vx5sprite*, char**);
 extern(C) void loadnul(dpoint3d *, dpoint3d *, dpoint3d *, dpoint3d *);
-extern(C) long loaddta(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) long loadpng(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int loaddta(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int loadpng(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
 extern(C) void loadbsp(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) long loadvxl(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) long savevxl(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) long loadsky(const char*);
+extern(C) int loadvxl(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int savevxl(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int loadsky(const char*);
 
 /// Screen related functions:
-extern(C) void voxsetframebuffer(long, long, long, long);
+extern(C) void voxsetframebuffer(int, int, int, int);
 extern(C) void setsideshades(char, char, char, char, char, char);
 extern(C) void setcamera(dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*, float, float, float);
 extern(C) void opticast();
-extern(C) void drawpoint2d(long, long, long);
-extern(C) void drawpoint3d(float, float, float, long);
-extern(C) void drawline2d(float, float, float, float, long);
-extern(C) void drawline3d(float, float, float, float, float, float, long);
-extern(C) long project2d(float, float, float, float*, float*, float*);
-extern(C) void drawspherefill(float, float, float, float, long);
-extern(C) void drawpicinquad(long, long, long, long, long, long, long, long, float, float, float, float, float, float, float, float);
-extern(C) void drawpolyquad (long, long, long, long, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float);
-extern(C) void print4x6 (long, long, long, long, const char *, ...);
-extern(C) void print6x8 (long, long, long, long, const char *, ...);
-extern(C) void drawtile (long, long, long, long, long, long, long, long, long, long, long, long);
-extern(C) long screencapture32bit (const char *);
-extern(C) long surroundcapture32bit (dpoint3d *, const char *, long);
+extern(C) void drawpoint2d(int, int, int);
+extern(C) void drawpoint3d(float, float, float, int);
+extern(C) void drawline2d(float, float, float, float, int);
+extern(C) void drawline3d(float, float, float, float, float, float, int);
+extern(C) int project2d(float, float, float, float*, float*, float*);
+extern(C) void drawspherefill(float, float, float, float, int);
+extern(C) void drawpicinquad(int, int, int, int, int, int, int, int, float, float, float, float, float, float, float, float);
+extern(C) void drawpolyquad (int, int, int, int, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float);
+extern(C) void print4x6 (int, int, int, int, const char *, ...);
+extern(C) void print6x8 (int, int, int, int, const char *, ...);
+extern(C) void drawtile (int, int, int, int, int, int, int, int, int, int, int, int);
+extern(C) int screencapture32bit (const char *);
+extern(C) int surroundcapture32bit (dpoint3d *, const char *, int);
 
 /// Sprite related functions:
 extern(C) kv6data *getkv6 (const char *);
@@ -266,11 +266,11 @@ extern(C) void freekv6 (kv6data *kv6);
 extern(C) void savekv6 (const char *, kv6data *);
 extern(C) void getspr (vx5sprite *, const char *);
 extern(C) kv6data *genmipkv6 (kv6data *);
-extern(C) char *getkfilname (long);
-extern(C) void animsprite (vx5sprite *, long);
+extern(C) char *getkfilname (int);
+extern(C) void animsprite (vx5sprite *, int);
 extern(C) void drawsprite (vx5sprite *);
-extern(C) long meltsphere (vx5sprite *, lpoint3d *, long);
-extern(C) long meltspans (vx5sprite *, vspans *, long, lpoint3d *);
+extern(C) int meltsphere (vx5sprite *, lpoint3d *, int);
+extern(C) int meltspans (vx5sprite *, vspans *, int, lpoint3d *);
 
 	//Physics helper functions:
 extern(C) void orthonormalize (point3d *, point3d *, point3d *);
@@ -279,68 +279,68 @@ extern(C) void orthorotate (float, float, float, point3d *, point3d *, point3d *
 extern(C) void dorthorotate (double, double, double, dpoint3d *, dpoint3d *, dpoint3d *);
 extern(C) void axisrotate (point3d *, point3d *, float);
 extern(C) void slerp (point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, float);
-extern(C) long cansee (point3d *, point3d *, lpoint3d *);
-extern(C) void hitscan (dpoint3d *, dpoint3d *, lpoint3d *, long **, long *);
+extern(C) int cansee (point3d *, point3d *, lpoint3d *);
+extern(C) void hitscan (dpoint3d *, dpoint3d *, lpoint3d *, int **, int *);
 extern(C) void sprhitscan (dpoint3d *, dpoint3d *, vx5sprite *, lpoint3d *, kv6voxtype **, float *vsc);
 extern(C) double findmaxcr (double, double, double, double);
 extern(C) void clipmove (dpoint3d *, dpoint3d *, double);
-extern(C) long triscan (point3d *, point3d *, point3d *, point3d *, lpoint3d *);
-extern(C) void estnorm (long, long, long, point3d *);
+extern(C) int triscan (point3d *, point3d *, point3d *, point3d *, lpoint3d *);
+extern(C) void estnorm (int, int, int, point3d *);
 
 	//VXL reading functions (fast!):
-extern(C) long isvoxelsolid (long, long, long);
-extern(C) long anyvoxelsolid (long, long, long, long);
-extern(C) long anyvoxelempty (long, long, long, long);
-extern(C) long getfloorz (long, long, long);
-extern(C) long getcube (long, long, long);
+extern(C) int isvoxelsolid (int, int, int);
+extern(C) int anyvoxelsolid (int, int, int, int);
+extern(C) int anyvoxelempty (int, int, int, int);
+extern(C) int getfloorz (int, int, int);
+extern(C) int getcube (int, int, int);
 
 	//VXL writing functions (optimized & bug-free):
-extern(C) void setcube (long, long, long, long);
-extern(C) void setsphere (lpoint3d *, long, long);
-extern(C) void setellipsoid (lpoint3d *, lpoint3d *, long, long, long);
-extern(C) void setcylinder (lpoint3d *, lpoint3d *, long, long, long);
-extern(C) void setrect (lpoint3d *, lpoint3d *, long);
-extern(C) void settri (point3d *, point3d *, point3d *, long);
-extern(C) void setsector (point3d *, long *, long, float, long, long);
-extern(C) void setspans (vspans *, long, lpoint3d *, long);
-extern(C) void setheightmap (const ubyte *, long, long, long, long, long, long, long);
-extern(C) void setkv6 (vx5sprite *, long);
+extern(C) void setcube (int, int, int, int);
+extern(C) void setsphere (lpoint3d *, int, int);
+extern(C) void setellipsoid (lpoint3d *, lpoint3d *, int, int, int);
+extern(C) void setcylinder (lpoint3d *, lpoint3d *, int, int, int);
+extern(C) void setrect (lpoint3d *, lpoint3d *, int);
+extern(C) void settri (point3d *, point3d *, point3d *, int);
+extern(C) void setsector (point3d *, int *, int, float, int, int);
+extern(C) void setspans (vspans *, int, lpoint3d *, int);
+extern(C) void setheightmap (const ubyte *, int, int, int, int, int, int, int);
+extern(C) void setkv6 (vx5sprite *, int);
 
 	//VXL writing functions (slow or buggy):
-extern(C) void sethull3d (point3d *, long, long, long);
-extern(C) void setlathe (point3d *, long, long, long);
-extern(C) void setblobs (point3d *, long, long, long);
-extern(C) void setfloodfill3d (long, long, long, long, long, long, long, long, long);
+extern(C) void sethull3d (point3d *, int, int, int);
+extern(C) void setlathe (point3d *, int, int, int);
+extern(C) void setblobs (point3d *, int, int, int);
+extern(C) void setfloodfill3d (int, int, int, int, int, int, int, int, int);
 extern(C) void sethollowfill ();
-extern(C) void setkvx (const char *, long, long, long, long, long);
-extern(C) void setflash (float, float, float, long, long, long);
-extern(C) void setnormflash (float, float, float, long, long);
+extern(C) void setkvx (const char *, int, int, int, int, int);
+extern(C) void setflash (float, float, float, int, int, int);
+extern(C) void setnormflash (float, float, float, int, int);
 
 	//VXL MISC functions:
-extern(C) void updatebbox (long, long, long, long, long, long, long);
+extern(C) void updatebbox (int, int, int, int, int, int, int);
 extern(C) void updatevxl ();
-extern(C) void genmipvxl (long, long, long, long);
-extern(C) void updatelighting (long, long, long, long, long, long);
+extern(C) void genmipvxl (int, int, int, int);
+extern(C) void updatelighting (int, int, int, int, int, int);
 
 	//Falling voxels functions:
-extern(C) void checkfloatinbox (long, long, long, long, long, long);
+extern(C) void checkfloatinbox (int, int, int, int, int, int);
 extern(C) void startfalls ();
-extern(C) void dofall (long);
-extern(C) long meltfall (vx5sprite *, long, long);
+extern(C) void dofall (int);
+extern(C) int meltfall (vx5sprite *, int, int);
 extern(C) void finishfalls ();
 
 	//Procedural texture functions:
-extern(C) long curcolfunc (lpoint3d *);
-extern(C) long floorcolfunc (lpoint3d *);
-extern(C) long jitcolfunc (lpoint3d *);
-extern(C) long manycolfunc (lpoint3d *);
-extern(C) long sphcolfunc (lpoint3d *);
-extern(C) long woodcolfunc (lpoint3d *);
-extern(C) long pngcolfunc (lpoint3d *);
-extern(C) long kv6colfunc (lpoint3d *);
+extern(C) int curcolfunc (lpoint3d *);
+extern(C) int floorcolfunc (lpoint3d *);
+extern(C) int jitcolfunc (lpoint3d *);
+extern(C) int manycolfunc (lpoint3d *);
+extern(C) int sphcolfunc (lpoint3d *);
+extern(C) int woodcolfunc (lpoint3d *);
+extern(C) int pngcolfunc (lpoint3d *);
+extern(C) int kv6colfunc (lpoint3d *);
 
 	//Editing backup/restore functions
-extern(C) void voxbackup (long, long, long, long, long);
+extern(C) void voxbackup (int, int, int, int, int);
 extern(C) void voxdontrestore ();
 extern(C) void voxrestore ();
 extern(C) void voxredraw ();
@@ -388,7 +388,7 @@ import std.c.stdlib;
 extern char keystatus[256];
 extern void readkeyboard();
 extern void breath();
-extern long startdirectdraw(long *, long *, long *, long *);
+extern int startdirectdraw(int *, int *, int *, int *);
 extern void stopdirectdraw();
 extern void nextpage();
 extern void evilquit(const char *);
@@ -396,8 +396,8 @@ extern void evilquit(const char *);
 enum VOXSIZ = VSID*VSID*128;
 char *sptr[(VSID*VSID*4)/3];
 
-static long* vbuf = null, vbit = null;
-static long vbiti;
+static int* vbuf = null, vbit = null;
+static int vbiti;
 
 	//WARNING: loaddta uses last 2MB of vbuf; vbuf:[VOXSIZ>>2], vbit:[VOXSIZ>>7]
 	//WARNING: loadpng uses last 4MB of vbuf; vbuf:[VOXSIZ>>2], vbit:[VOXSIZ>>7]
@@ -422,36 +422,36 @@ static long vbiti;
 
 enum MAXCSIZ = 1028;
 char tbuf[MAXCSIZ];
-long tbuf2[MAXZDIM*3];
-long templongbuf[MAXZDIM];
+int tbuf2[MAXZDIM*3];
+int templongbuf[MAXZDIM];
 
-extern long cputype; //bit25=1: SSE, bits30&31=1,1:3DNow!+
+extern int cputype; //bit25=1: SSE, bits30&31=1,1:3DNow!+
 
 static char nullst = 0; // nullst always NULL string
 
 enum SETSPHMAXRAD = 256;
 static double logint[SETSPHMAXRAD];
 static float tempfloatbuf[SETSPHMAXRAD];
-static long factr[SETSPHMAXRAD][2];
+static int factr[SETSPHMAXRAD][2];
 
 static if (USEZBUFFER == 0)
 {
 	align(1) struct castdat
 	{
-		long col;
+		int col;
 	}
 } else
 {
 	align(1) struct castdat
 	{
-		long col, dist;
+		int col, dist;
 	}
 }
 
 align(1) struct cftype
 {
 	castdat* i0, i1;
-	long z0, z1, cx0, cy0, cx1, cy1;
+	int z0, z1, cx0, cy0, cx1, cy1;
 }
 
 align(1) struct uspoint2d
@@ -461,7 +461,7 @@ align(1) struct uspoint2d
 
 align(1) struct lpoint2d
 {
-	long x, y;
+	int x, y;
 }
 
 align(1) struct point2d
@@ -480,40 +480,40 @@ static if(USEV5ASM)
 }
 
 // Screen related variables:
-static long xres, yres, bytesperline, frameplace, xres4;
-long ylookup[MAXYDIM+1];
+static int xres, yres, bytesperline, frameplace, xres4;
+int ylookup[MAXYDIM+1];
 
 static lpoint3d glipos;
 static point3d gipos, gistr, gihei, gifor;
 static point3d gixs, giys, gizs, giadd;
 static float gihx, gihy, gihzz, grd;
 static float[2] gposxfrac, gposyfrac;
-static long gposz, giforzsgn, gstartz0, gstartz1;
-static long[2] gixyi;
+static int gposz, giforzsgn, gstartz0, gstartz1;
+static int[2] gixyi;
 static char *gstartv;
 
-long backtag, backedup = -1, bacx0, bacy0, bacx1, bacy1;
+int backtag, backedup = -1, bacx0, bacy0, bacx1, bacy1;
 char *bacsptr[262144];
 
 // Flash variables
 enum LOGFLASHVANG = 9;
 static lpoint2d gfc[(1<<LOGFLASHVANG)*8];
-static long gfclookup[8] = [4,7,2,5,9,3,6,1];
-static long flashcnt = 0;
+static int gfclookup[8] = [4,7,2,5,9,3,6,1];
+static int flashcnt = 0;
 long flashbrival;
 
 // Norm flash variables
 enum GSIZ = 512; // NONE: GSIZ should be 1<,x, and must be <= 65536
-static long bbuf[GSIZ][GSIZ>>5];
-static long[32] p2c, p2m; // bbuf: 2.0K
+static int bbuf[GSIZ][GSIZ>>5];
+static int[32] p2c, p2m; // bbuf: 2.0K
 static uspoint2d ffx[((GSIZ>>1)+2)*(GSIZ>>1)];
 static uspoint2d *ffxptr; // ffx: 16.5K
-static long xbsox = -17;
-static long xbsoy, xbsof;
+static int xbsox = -17;
+static int xbsoy, xbsof;
 static long xbsbuf[25*5+1]; //need few bits befor&after for protection
 
 // Look tables for expandbitstack256:
-static long[32] xbsceil, xbsflor;
+static int[32] xbsceil, xbsflor;
 
 // float detection & falling code varialbes...
 // WARNING: VLSTSIZ, FSTKSIZ, FLCHKSIZ can all have bound errors! :(
@@ -523,27 +523,27 @@ enum FSTKSIZ = 8192;
 
 struct vlstyp
 {
-	long v, b;
+	int v, b;
 }
 
 vlstyp vlst[VLSTSIZ];
-long hhead[1<<LOGHASHEAD];
-long vlstcnt = 0x7fffffff;
+int hhead[1<<LOGHASHEAD];
+int vlstcnt = 0x7fffffff;
 lpoint3d fstk[FSTKSIZ]; //Note .z is actually used as a pointer, not z!
 enum FLCHKSIZ = 4096;
 lpoint3d flchk[FLCHKSIZ];
-long flchkcnt = 0;
+int flchkcnt = 0;
 
 // Opticast global variables:
 // radar: 320x200 requires  419560*2 bytes (area * 6.56*2)
 // radar: 400x300 requires  751836*2 bytes (area * 6.27*2)
 // radar: 640x480 requires 1917568*2 bytes (area * 6.24*2)
 enum SCPITCH = 256;
-long* radar = null, radarmem = null;
+int* radar = null, radarmem = null;
 
 static if(USEZBUFFER == 1)
 {
-	static long *zbuffermem = null, zbuffersiz = null;
+	static int *zbuffermem = null, zbuffersiz = null;
 }
 
 static castdat*[MAXXDIM*4]  angstart;
@@ -557,27 +557,27 @@ static size_t max(size_t a, size_t b)
 enum CMPRECIPSIZ = MAXXDIM+32;
 static float cmprecip[CMPRECIPSIZ];
 static float wx0, wy0, wx1, wy1;
-static long iwx0, iwy0, iwx1, iwy1;
+static int iwx0, iwy0, iwx1, iwy1;
 static point3d gcorn[4];
 	   point3d ginor[4]; //Should be static, but... necessary for stupid pingball hack :/
-static long lastx[max(MAXYDIM, VSID)];
-static long uurendmem[MAXXDIM*2+8];
-static long* uurend;
+static int lastx[max(MAXYDIM, VSID)];
+static int uurendmem[MAXXDIM*2+8];
+static int* uurend;
 
 void mat0(point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *);
 void mat1(point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *);
 void mat2(point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *, point3d *);
 
 //Parallaxing sky variables:
-static long skypic = 0, nskypic = 0, skybpl, skyysiz, skycurlng, skycurdir;
+static int skypic = 0, nskypic = 0, skybpl, skyysiz, skycurlng, skycurdir;
 static float skylngmul;
 static point2d *skylng = null;
 
 extern(C)
 {
 	//Parallaxing sky variables (accessed by assemly code)
-	long skyoff = 0, skyxsiz;
-	long *skylat = null;
+	int skyoff = 0, skyxsiz;
+	int *skylat = null;
 
 	long gi;
 	long gcsub[8] = 
@@ -585,24 +585,35 @@ extern(C)
 		0xff00ff00ff00ff,0xff00ff00ff00ff,0xff00ff00ff00ff,0xff00ff00ff00ff,
 		0xff00ff00ff00ff,0xff00ff00ff00ff,0xff00ff00ff00ff,0xff00ff00ff00ff
 	];
-	long gylookup[512+36];
-	long gmipnum = 0;  //256+4+128+4+64+4+...
-	long[2] gpz, gdz, gixy;
-	long gxmip, gxmax, gpixy;
-	static long gmaxscandist;
+	int gylookup[512+36];
+	int gmipnum = 0;  //256+4+128+4+64+4+...
+	int[2] gpz, gdz, gixy;
+	int gxmip, gxmax, gpixy;
+	static int gmaxscandist;
 
-	//long rEAX, rebx, recx, redx, resi, redi, rebp, resp, remm[16];
+	//int rEAX, rebx, recx, redx, resi, redi, rebp, resp, remm[16];
 	void v5_asm_dep_unlock();
-	void grouscanasm(long);
+	void grouscanasm(int);
 
 	static if(USEZBUFFER == 1)
 	{
-		long zbufoff;
+		int zbufoff;
 	}
 }
 
-enum gi0 = ((cast(long *)&gi)[0]);
-enum gi1 = ((cast(long *)&gi)[1]);
+//enum gi0 = ((cast(int *)&gi)[0]); crash dmd
+//enum gi1 = ((cast(int *)&gi)[1]);
+
+static int gi0() @property @trusted nothrow
+{
+	return (cast(int*)&gi)[0];
+}
+
+static int gi1() @property @trusted nothrow
+{
+	return (cast(int*)&gi)[1];
+}
+
 
 static void fcossin(float a, float *c, float *s)
 {
@@ -628,7 +639,7 @@ static void dcossin(double a, double *c, double *s)
 	}
 }
 
-static void ftol(float f, long *a)
+static void ftol(float f, int *a)
 {
 	asm
 	{
@@ -638,7 +649,7 @@ static void ftol(float f, long *a)
 	}
 }
 
-static void dtol(double d, long *a)
+static void dtol(double d, int *a)
 {
 	asm
 	{
@@ -667,7 +678,7 @@ static double dbound(double d, double dmin, double dmax)
 	return d;
 }
 
-static long mulshr16(long a, long d)
+static int mulshr16(int a, int d)
 {
 	asm
 	{
@@ -678,7 +689,7 @@ static long mulshr16(long a, long d)
 	}
 }
 
-static long mul64(long a, long d)
+static long mul64(int a, int d)
 {
 	asm
 	{
@@ -687,7 +698,7 @@ static long mul64(long a, long d)
 	}
 }
 
-static long shldiv16(long a, long b)
+static int shldiv16(int a, int b)
 {
 	asm
 	{
@@ -699,7 +710,7 @@ static long shldiv16(long a, long b)
 	}
 }
 
-static long isshldiv16safe(long a, long b)
+static int isshldiv16safe(int a, int b)
 {
 	asm
 	{
@@ -723,7 +734,7 @@ static long isshldiv16safe(long a, long b)
 	}
 }
 
-static long umulshr32(long a, long d)
+static int umulshr32(int a, int d)
 {
 	asm
 	{
@@ -733,7 +744,7 @@ static long umulshr32(long a, long d)
 	}
 }
 
-static long scale(long a, long d, long c)
+static int scale(int a, int d, int c)
 {
 	asm
 	{
@@ -743,7 +754,7 @@ static long scale(long a, long d, long c)
 	}
 }
 
-static long dmulrethigh(long b, long c, long a, long d)
+static int dmulrethigh(int b, int c, int a, int d)
 {
 	asm
 	{
@@ -760,7 +771,7 @@ static long dmulrethigh(long b, long c, long a, long d)
 	}
 }
 
-static void copybuf(void *s, void *d, long c)
+static void copybuf(void *s, void *d, int c)
 {
 	asm
 	{
@@ -776,7 +787,7 @@ static void copybuf(void *s, void *d, long c)
 	}
 }
 
-static void clearbuf(void *d, long c, long a)
+static void clearbuf(void *d, int c, int a)
 {
 	asm
 	{
@@ -791,17 +802,17 @@ static void clearbuf(void *d, long c, long a)
 }
 
 //if (a < 0) return(0); else if (a > b) return(b); else return(a);
-static long lbound0(long a, long b) //b MUST be >= 0
+static int lbound0(int a, int b) //b MUST be >= 0
 {
-	if (cast(ulong)a <= b) return a;
+	if (cast(uint)a <= b) return a;
 	return((~(a>>31))&b);
 }
 
 //if (a < b) return(b); else if (a > c) return(c); else return(a);
-static long lbound(long a, long b, long c) //c MUST be >= b
+static int lbound(int a, int b, int c) //c MUST be >= b
 {
 	c -= b;
-	if (cast(ulong)(a-b) <= c) return a;
+	if (cast(uint)(a-b) <= c) return a;
 	return((((b-a)>>31)&c) + b);
 }
 
@@ -809,7 +820,7 @@ enum LSINSIZ = 8; // Must be >= 2!
 static point2d usintab[(1<<LSINSIZ)+(1<<(LSINSIZ-2))];
 static void ucossininit()
 {
-	long i, j;
+	int i, j;
 	double a, ai, s, si, m;
 
 	j = 0; usintab[0].y = 0.0;
@@ -832,14 +843,14 @@ static void ucossininit()
 
 //Calculates cos & sin of 32-bit unsigned long angle in ~15 clock cycles
 //  Accuracy is approximately +/-.0001
-static void ucossin(ulong a, float *cosin)
+static void ucossin(uint a, float *cosin)
 {
 	float f = (cast(float)(a&((1<<(32-LSINSIZ))-1))); a >>= (32-LSINSIZ);
 	cosin[0] = usintab[cast(size_t)(a+(1<<(LSINSIZ-2)))].x*f+usintab[cast(size_t)(a+(1<<(LSINSIZ-2)))].y;
 	cosin[1] = usintab[cast(size_t)a                  ].x*f+usintab[cast(size_t)a                    ].y;
 }
 
-static const long font4x6[] = //256 DOS chars, from Ken's Build SMALLFNT
+static const int font4x6[] = //256 DOS chars, from Ken's Build SMALLFNT
 [
 	0x000000,0x6f9f60,0x69f960,0xaffe40,0x4efe40,0x6ff6f0,0x66f6f0,0x000000,
 	0xeeaee0,0x000000,0x000000,0x000000,0x000000,0x000000,0x7755c0,0x96f690,
@@ -875,12 +886,12 @@ static const long font4x6[] = //256 DOS chars, from Ken's Build SMALLFNT
 	0xeae000,0x0cc000,0x00c000,0x644c40,0xcaa000,0xc4e000,0x0eee00,0x000000,
 ];
 
-void print4x6 (long x, long y, long fcol, long bcol, const char *fmt, ...)
+void print4x6 (int x, int y, int fcol, int bcol, const char *fmt, ...)
 {
 	va_list arglist;
 	char st[280];
 	char *c;
-	long i, j;
+	int i, j;
 
 	if (!fmt) return;
 	va_start(arglist,fmt);
@@ -894,10 +905,10 @@ void print4x6 (long x, long y, long fcol, long bcol, const char *fmt, ...)
 			for(c=&st[0],x=y;*c;c++,x+=16)
 			{
 				i = (font4x6[*c]>>j);
-				if (i&8) *cast(long *)(x   ) = fcol;
-				if (i&4) *cast(long *)(x+ 4) = fcol;
-				if (i&2) *cast(long *)(x+ 8) = fcol;
-				if (i&1) *cast(long *)(x+12) = fcol;
+				if (i&8) *cast(int *)(x   ) = fcol;
+				if (i&4) *cast(int *)(x+ 4) = fcol;
+				if (i&2) *cast(int *)(x+ 8) = fcol;
+				if (i&1) *cast(int *)(x+12) = fcol;
 				if ((*c) == 9) x += 32;
 			}
 		return;
@@ -907,11 +918,11 @@ void print4x6 (long x, long y, long fcol, long bcol, const char *fmt, ...)
 		for(c=&st[0],x=y;*c;c++,x+=16)
 		{
 			i = (font4x6[*c]>>j);
-			*cast(long *)(x   ) = (((i<<28)>>31)&fcol)+bcol;
-			*cast(long *)(x+ 4) = (((i<<29)>>31)&fcol)+bcol;
-			*cast(long *)(x+ 8) = (((i<<30)>>31)&fcol)+bcol;
-			*cast(long *)(x+12) = (((i<<31)>>31)&fcol)+bcol;
-			if ((*c) == 9) { for(i=16;i<48;i+=4) *cast(long *)(x+i) = bcol; x += 32; }
+			*cast(int *)(x   ) = (((i<<28)>>31)&fcol)+bcol;
+			*cast(int *)(x+ 4) = (((i<<29)>>31)&fcol)+bcol;
+			*cast(int *)(x+ 8) = (((i<<30)>>31)&fcol)+bcol;
+			*cast(int *)(x+12) = (((i<<31)>>31)&fcol)+bcol;
+			if ((*c) == 9) { for(i=16;i<48;i+=4) *cast(int *)(x+i) = bcol; x += 32; }
 		}
 }
 
@@ -968,12 +979,12 @@ static const long font6x8[] = //256 DOS chars, from: DOSAPP.FON (tab blank)
 	0x02023E4030000000,0x0900000E010E0100,0x3C3C3C0000000A0D,0x000000000000003C,
 ];
 
-void print6x8 (long x, long y, long fcol, long bcol, const char *fmt, ...)
+void print6x8 (int x, int y, int fcol, int bcol, const char *fmt, ...)
 {
 	va_list arglist;
 	char st[280];
 	char* c, v;
-	long i, j;
+	int i, j;
 
 	if (!fmt) return;
 	va_start(arglist,fmt);
@@ -986,13 +997,13 @@ void print6x8 (long x, long y, long fcol, long bcol, const char *fmt, ...)
 		for(j=1;j<256;y+=bytesperline,j<<=1)
 			for(c=&st[0],x=y;*c;c++,x+=24)
 			{
-				v = cast(char *)((cast(long)&font6x8) + (cast(long)c[0])*6);
-				if (v[0]&j) *cast(long *)(x   ) = fcol;
-				if (v[1]&j) *cast(long *)(x+ 4) = fcol;
-				if (v[2]&j) *cast(long *)(x+ 8) = fcol;
-				if (v[3]&j) *cast(long *)(x+12) = fcol;
-				if (v[4]&j) *cast(long *)(x+16) = fcol;
-				if (v[5]&j) *cast(long *)(x+20) = fcol;
+				v = cast(char *)((cast(int)&font6x8) + (cast(int)c[0])*6);
+				if (v[0]&j) *cast(int *)(x   ) = fcol;
+				if (v[1]&j) *cast(int *)(x+ 4) = fcol;
+				if (v[2]&j) *cast(int *)(x+ 8) = fcol;
+				if (v[3]&j) *cast(int *)(x+12) = fcol;
+				if (v[4]&j) *cast(int *)(x+16) = fcol;
+				if (v[5]&j) *cast(int *)(x+20) = fcol;
 				if ((*c) == 9) x += ((2*6)<<2);
 			}
 		return;
@@ -1001,34 +1012,34 @@ void print6x8 (long x, long y, long fcol, long bcol, const char *fmt, ...)
 	for(j=1;j<256;y+=bytesperline,j<<=1)
 		for(c=&st[0],x=y;*c;c++,x+=24)
 		{
-			v = cast(char *)((cast(long)&font6x8) + (cast(long)c[0])*6);
-			*cast(long *)(x   ) = (((-(v[0]&j))>>31)&fcol)+bcol;
-			*cast(long *)(x+ 4) = (((-(v[1]&j))>>31)&fcol)+bcol;
-			*cast(long *)(x+ 8) = (((-(v[2]&j))>>31)&fcol)+bcol;
-			*cast(long *)(x+12) = (((-(v[3]&j))>>31)&fcol)+bcol;
-			*cast(long *)(x+16) = (((-(v[4]&j))>>31)&fcol)+bcol;
-			*cast(long *)(x+20) = (((-(v[5]&j))>>31)&fcol)+bcol;
-			if ((*c) == 9) { for(i=24;i<72;i+=4) *cast(long *)(x+i) = bcol; x += ((2*6)<<2); }
+			v = cast(char *)((cast(int)&font6x8) + (cast(int)c[0])*6);
+			*cast(int *)(x   ) = (((-(v[0]&j))>>31)&fcol)+bcol;
+			*cast(int *)(x+ 4) = (((-(v[1]&j))>>31)&fcol)+bcol;
+			*cast(int *)(x+ 8) = (((-(v[2]&j))>>31)&fcol)+bcol;
+			*cast(int *)(x+12) = (((-(v[3]&j))>>31)&fcol)+bcol;
+			*cast(int *)(x+16) = (((-(v[4]&j))>>31)&fcol)+bcol;
+			*cast(int *)(x+20) = (((-(v[5]&j))>>31)&fcol)+bcol;
+			if ((*c) == 9) { for(i=24;i<72;i+=4) *cast(int *)(x+i) = bcol; x += ((2*6)<<2); }
 		}
 }
 
-static long gkrand = 0;
-long colorjit(long i, long jitamount)
+static int gkrand = 0;
+int colorjit(int i, int jitamount)
 {
 	gkrand = (gkrand*27584621)+1;
 	return((gkrand&jitamount)^i);
 }
 
-static long min(long a, long b)
+static int min(int a, int b)
 {
 	return a >= b ? b : a;
 }
 
-long lightvox (long i)
+int lightvox (int i)
 {
-	long r, g, b;
+	int r, g, b;
 
-	b = (cast(ulong)i>>24);
+	b = (cast(uint)i>>24);
 	r = min((((i>>16)&255)*b)>>7,255);
 	g = min((((i>>8 )&255)*b)>>7,255);
 	b = min((((i    )&255)*b)>>7,255);
@@ -1054,9 +1065,9 @@ long lightvox (long i)
 //   modify exact [EAX]
 //   value [EAX]
 
-long colormul(long i, long mulup8)
+int colormul(int i, int mulup8)
 {
-	long r, g, b;
+	int r, g, b;
 
 	r = ((((i>>16)&255)*mulup8)>>8); if (r > 255) r = 255;
 	g = ((((i>>8 )&255)*mulup8)>>8); if (g > 255) g = 255;
@@ -1064,18 +1075,18 @@ long colormul(long i, long mulup8)
 	return((i&0xff000000)+(r<<16)+(g<<8)+b);
 }
 
-long curcolfunc (lpoint3d *p) { return vx5.curcol; }
+int curcolfunc (lpoint3d *p) { return vx5.curcol; }
 
-long floorcolfunc(lpoint3d *p)
+int floorcolfunc(lpoint3d *p)
 {
 	char *v;
 	for(v=sptr[cast(size_t)(p.y*VSID+p.x)];(p.z>v[2]) && (v[0]);v+=v[0]*4) {}
-	return *cast(long *)&v[4];	
+	return *cast(int *)&v[4];	
 }
 
-long jitcolfunc(lpoint3d *p) { return colorjit(vx5.curcol, vx5.amount);}
+int jitcolfunc(lpoint3d *p) { return colorjit(vx5.curcol, vx5.amount);}
 
-static long manycolukup[64] =
+static int manycolukup[64] =
 [
 	  0,  1,  2,  5, 10, 15, 21, 29, 37, 47, 57, 67, 79, 90,103,115,
 	127,140,152,165,176,188,198,208,218,226,234,240,245,250,253,254,
@@ -1083,14 +1094,14 @@ static long manycolukup[64] =
 	128,115,103, 90, 79, 67, 57, 47, 37, 29, 21, 15, 10,  5,  2,  1
 ];
 
-long manycolfunc(lpoint3d *p)
+int manycolfunc(lpoint3d *p)
 {
 	return (manycolukup[p.x&63]<<16)+(manycolukup[p.y&63]<<8)+manycolukup[p.z&63]+0x80000000;
 }
 
-long sphcolfunc(lpoint3d *p)
+int sphcolfunc(lpoint3d *p)
 {
-	long i;
+	int i;
 	ftol(sin((p.x+p.y+p.z-vx5.cen)*vx5.daf)*(-96), &i);
 	return ((i+128)<<24)|(vx5.curcol&0xffffff);
 }
@@ -1100,12 +1111,12 @@ enum WOODYSIZ = 24;
 enum WOODZSIZ = 24;
 
 static float[256] wx, wy, wz, vx, vy, vz;
-long woodcolfunc(lpoint3d *p)
+int woodcolfunc(lpoint3d *p)
 {
 	float col, u, a, f, dx, dy, dz;
-	long i, c, xof, yof, tx, ty, xoff;
+	int i, c, xof, yof, tx, ty, xoff;
 
-	if (*cast(long *)&wx[0] == 0)
+	if (*cast(int *)&wx[0] == 0)
 	{
 		for(i=0;i<256;i++)
 		{
@@ -1157,10 +1168,10 @@ long woodcolfunc(lpoint3d *p)
 	return(colormul(vx5.curcol,i<<1));	
 }
 
-long gxsizcache = 0, gysizcache = 0;
-long pngcolfunc (lpoint3d *p)
+int gxsizcache = 0, gysizcache = 0;
+int pngcolfunc (lpoint3d *p)
 {
-	long x, y, z, u, v;
+	int x, y, z, u, v;
 	float fx, fy, fz, rx, ry, rz;
 
 	if (!vx5.pic) return(vx5.curcol);
@@ -1190,18 +1201,18 @@ long pngcolfunc (lpoint3d *p)
 			ftol(vx5.fpicv.x*fx + vx5.fpicv.y*fy + vx5.fpicv.z*fz,&v);
 			break;
 	}
-	if (cast(ulong)(u-gxsizcache) >= cast(ulong)vx5.xsiz)
+	if (cast(uint)(u-gxsizcache) >= cast(uint)vx5.xsiz)
 		if (u < 0) gxsizcache = u-(u+1)%vx5.xsiz-vx5.xsiz+1; else gxsizcache = u-(u%vx5.xsiz);
-	if (cast(ulong)(v-gysizcache) >= cast(ulong)vx5.ysiz)
+	if (cast(uint)(v-gysizcache) >= cast(uint)vx5.ysiz)
 		if (v < 0) gysizcache = v-(v+1)%vx5.ysiz-vx5.ysiz+1; else gysizcache = v-(v%vx5.ysiz);
 	return((vx5.pic[cast(size_t)((v-gysizcache)*(vx5.bpl>>2)+(u-gxsizcache))]&0xffffff)|0x80000000);
 }
 
 	//Special case for SETSEC & SETCEI bumpmapping (vx5.picmode == 3)
 	//no safety checks, returns alpha as signed char in range: (-128 to 127)
-long hpngcolfunc (point3d *p)
+int hpngcolfunc (point3d *p)
 {
-	long u, v;
+	int u, v;
 	float fx, fy, fz;
 
 	fx = p.x-vx5.fpico.x;
@@ -1210,25 +1221,25 @@ long hpngcolfunc (point3d *p)
 	ftol(vx5.fpicu.x*fx + vx5.fpicu.y*fy + vx5.fpicu.z*fz,&u);
 	ftol(vx5.fpicv.x*fx + vx5.fpicv.y*fy + vx5.fpicv.z*fz,&v);
 
-	if (cast(ulong)(u-gxsizcache) >= cast(ulong)vx5.xsiz)
+	if (cast(uint)(u-gxsizcache) >= cast(uint)vx5.xsiz)
 		if (u < 0) gxsizcache = u-(u+1)%vx5.xsiz-vx5.xsiz+1; else gxsizcache = u-(u%vx5.xsiz);
-	if (cast(ulong)(v-gysizcache) >= cast(ulong)vx5.ysiz)
+	if (cast(uint)(v-gysizcache) >= cast(uint)vx5.ysiz)
 		if (v < 0) gysizcache = v-(v+1)%vx5.ysiz-vx5.ysiz+1; else gysizcache = v-(v%vx5.ysiz);
 	return(vx5.pic[cast(size_t)((v-gysizcache)*(vx5.bpl>>2)+(u-gxsizcache))]>>24);
 }
 
-static long slng (const char *s)
+static int slng (const char *s)
 {
 	char *v;
 
 	for(v=cast(char*)s;v[0];v+=v[0]*4) {}
-	return(cast(long)v-cast(long)s+(v[2]-v[1]+1)*4+4);
+	return(cast(int)v-cast(int)s+(v[2]-v[1]+1)*4+4);
 }
 
 void voxdealloc (const char *v)
 {
-	long i, j;
-	i = ((cast(long)v-cast(long)vbuf)>>2); j = (slng(v)>>2)+i;
+	int i, j;
+	i = ((cast(int)v-cast(int)vbuf)>>2); j = (slng(v)>>2)+i;
 	
 	static if(0)
 	{
@@ -1247,9 +1258,9 @@ void voxdealloc (const char *v)
 }
 
 	//Note: danum MUST be a multiple of 4!
-char *voxalloc (long danum)
+char *voxalloc (int danum)
 {
-	long i, badcnt, p0, p1, vend;
+	int i, badcnt, p0, p1, vend;
 
 	badcnt = 0; danum >>= 2; vend = (VOXSIZ>>2)-danum;
 	do
@@ -1271,11 +1282,11 @@ allocnothere:;
 	evilquit("voxalloc: vbuf full"); return null;
 }
 
-long isvoxelsolid (long x, long y, long z)
+int isvoxelsolid (int x, int y, int z)
 {
 	char *v;
 
-	if (cast(ulong)(x|y) >= VSID) return 0;
+	if (cast(uint)(x|y) >= VSID) return 0;
 	v = sptr[cast(size_t)(y*VSID+x)];
 	while (1)
 	{
@@ -1287,13 +1298,13 @@ long isvoxelsolid (long x, long y, long z)
 }
 
 	//Returns 1 if any voxels in range (x,y,z0) to (x,y,z1-1) are solid, else 0
-long anyvoxelsolid (long x, long y, long z0, long z1)
+int anyvoxelsolid (int x, int y, int z0, int z1)
 {
 	char *v;
 
 		//         v1.....v3   v1.....v3    v1.......................>
 		//                z0.........z1
-	if (cast(ulong)(x|y) >= VSID) return(0);
+	if (cast(uint)(x|y) >= VSID) return(0);
 	v = sptr[cast(size_t)(y*VSID+x)];
 	while (1)
 	{
@@ -1305,13 +1316,13 @@ long anyvoxelsolid (long x, long y, long z0, long z1)
 }
 
 	//Returns 1 if any voxels in range (x,y,z0) to (x,y,z1-1) are empty, else 0
-long anyvoxelempty (long x, long y, long z0, long z1)
+int anyvoxelempty (int x, int y, int z0, int z1)
 {
 	char *v;
 
 		//         v1.....v3   v1.....v3    v1.......................>
 		//                z0.........z1
-	if (cast(ulong)(x|y) >= VSID) return(1);
+	if (cast(uint)(x|y) >= VSID) return(1);
 	v = sptr[cast(size_t)(y*VSID+x)];
 	while (1)
 	{
@@ -1323,11 +1334,11 @@ long anyvoxelempty (long x, long y, long z0, long z1)
 }
 
 	//Returns z of first solid voxel under (x,y,z). Returns z if in solid.
-long getfloorz (long x, long y, long z)
+int getfloorz (int x, int y, int z)
 {
 	char *v;
 
-	if (cast(ulong)(x|y) >= VSID) return(z);
+	if (cast(uint)(x|y) >= VSID) return(z);
 	v = sptr[cast(size_t)(y*VSID+x)];
 	while (1)
 	{
@@ -1343,19 +1354,19 @@ long getfloorz (long x, long y, long z)
 	//   0: air
 	//   1: unexposed solid
 	//else: address to color in vbuf (this can never be 0 or 1)
-long getcube (long x, long y, long z)
+int getcube (int x, int y, int z)
 {
-	long ceilnum;
+	int ceilnum;
 	char *v;
 
-	if (cast(ulong)(x|y) >= VSID) return(0);
+	if (cast(uint)(x|y) >= VSID) return(0);
 	v = sptr[cast(size_t)(y*VSID+x)];
 	while (1)
 	{
 		if (z <= v[2])
 		{
 			if (z < v[1]) return(0);
-			return(cast(long)&v[cast(size_t)((z-v[1])*4+4)]);
+			return(cast(int)&v[cast(size_t)((z-v[1])*4+4)]);
 		}
 		ceilnum = v[2]-v[1]-v[0]+2;
 
@@ -1365,7 +1376,7 @@ long getcube (long x, long y, long z)
 		if (z < v[3])
 		{
 			if (z-v[3] < ceilnum) return(1);
-			return(cast(long)&v[cast(size_t)((z-v[3])*4)]);
+			return(cast(int)&v[cast(size_t)((z-v[3])*4)]);
 		}
 	}
 }
@@ -1378,9 +1389,9 @@ long getcube (long x, long y, long z)
 	//         px,py: parameters for setting unexposed voxel colors
 	//Outputs: cbuf[MAXCSIZ]: compressed output buffer
 	//Returns: n: length of compressed buffer (in bytes)
-long compilestack (long *uind, long *n0, long *n1, long *n2, long *n3, char *cbuf, long px, long py)
+int compilestack (int *uind, int *n0, int *n1, int *n2, int *n3, char *cbuf, int px, int py)
 {
-	long oz, onext, n, cp2, cp1, cp0, rp1, rp0;
+	int oz, onext, n, cp2, cp1, cp0, rp1, rp0;
 	lpoint3d p;
 
 	p.x = px; p.y = py;
@@ -1431,8 +1442,8 @@ long compilestack (long *uind, long *n0, long *n1, long *n2, long *n3, char *cbu
 		if ((cp1 == 1) || ((cp1 == 2) && ((!cp0) || (!cp2))))
 		{
 			if (cbuf[cast(size_t)(onext+2)] == p.z-1) cbuf[cast(size_t)(onext+2)] = cast(char)p.z;
-			if (uind[cast(size_t)p.z] == -2) *cast(long *)&cbuf[cast(size_t)n] = vx5.colfunc(&p);
-								 else *cast(long *)&cbuf[cast(size_t)n] = uind[cast(size_t)p.z];
+			if (uind[cast(size_t)p.z] == -2) *cast(int *)&cbuf[cast(size_t)n] = vx5.colfunc(&p);
+								 else *cast(int *)&cbuf[cast(size_t)n] = uind[cast(size_t)p.z];
 			n += 4;
 		}
 
@@ -1497,15 +1508,15 @@ static void expandbit256(void *s, void *d)
 	}
 }
 
-void expandbitstack (long x, long y, long *bind)
+void expandbitstack (int x, int y, long *bind)
 {
 	if ((x|y)&(~(VSID-1))) { clearbuf(cast(void *)bind,8,0L); return; }
 	expandbit256(sptr[cast(size_t)(y*VSID+x)],cast(void *)bind);
 }
 
-void expandstack (long x, long y, long *uind)
+void expandstack (int x, int y, int *uind)
 {
-	long z, topz;
+	int z, topz;
 	char* v, v2;
 
 	if ((x|y)&(~(VSID-1))) { clearbuf(cast(void *)uind,MAXZDIM,0); return; }
@@ -1515,29 +1526,29 @@ void expandstack (long x, long y, long *uind)
 	while (1)
 	{
 		while (z < v[1]) { uind[cast(size_t)z] = -1; z++; }
-		while (z <= v[2]) { uind[cast(size_t)z] = (*cast(long *)&v[cast(size_t)((z-v[1])*4+4)]); z++; }
+		while (z <= v[2]) { uind[cast(size_t)z] = (*cast(int *)&v[cast(size_t)((z-v[1])*4+4)]); z++; }
 		v2 = &v[(v[2]-v[1]+1)*4+4];
 
 		if (!v[0]) break;
 		v += v[0]*4;
 
-		topz = v[3]+((cast(long)v2-cast(long)v)>>2);
+		topz = v[3]+((cast(int)v2-cast(int)v)>>2);
 		while (z < topz) { uind[cast(size_t)z] = -2; z++; }
-		while (z < v[3]) { uind[cast(size_t)z] = *cast(long *)v2; z++; v2 += 4; }
+		while (z < v[3]) { uind[cast(size_t)z] = *cast(int *)v2; z++; v2 += 4; }
 	}
 	while (z < MAXZDIM) { uind[cast(size_t)z] = -2; z++; }
 }
 
-void gline (long leng, float x0, float y0, float x1, float y1)
+void gline (int leng, float x0, float y0, float x1, float y1)
 {
 	ulong q;
 	float f, f1, f2, vd0, vd1, vz0, vx1, vy1, vz1;
-	long j;
+	int j;
 	cftype *c;
 
 	static if(USEV5ASM == 0)
 	{
-		long gx, ogx, gy, ixy, col, dax, day;
+		int gx, ogx, gy, ixy, col, dax, day;
 		cftype* c2, ce;
 		char *v;
 	}
@@ -1553,30 +1564,32 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 	f1 = f / vx1;
 	f2 = f / vy1;
 	if (fabs(vx1) > fabs(vy1)) vd0 = vd0*f1; else vd0 = vd1*f2;
-	if (*cast(long *)&vd0 < 0) vd0 = 0; //vd0 MUST NOT be negative: bad for asm
+	if (*cast(int *)&vd0 < 0) vd0 = 0; //vd0 MUST NOT be negative: bad for asm
 	vd1 = f;
 	ftol(fabs(f1)*PREC,&gdz[0]);
 	ftol(fabs(f2)*PREC,&gdz[1]);
 
-	gixy[0] = (((*cast(long *)&vx1)>>31)<<3)+4; //=sgn(vx1)*4
-	gixy[1] = gixyi[cast(size_t)((*cast(ulong *)&vy1)>>31)]; //=sgn(vy1)*4*VSID
-	if (gdz[0] <= 0) { ftol(gposxfrac[cast(size_t)((*cast(ulong *)&vx1)>>31)]*fabs(f1)*PREC,&gpz[0]); if (gpz[0] <= 0) gpz[0] = 0x7fffffff; gdz[0] = 0x7fffffff-gpz[0]; } //Hack for divide overflow
-	else ftol(gposxfrac[cast(size_t)((*cast(ulong *)&vx1)>>31)]*cast(float)gdz[0],&gpz[0]);
-	if (gdz[1] <= 0) { ftol(gposyfrac[cast(size_t)((*cast(ulong *)&vy1)>>31)]*fabs(f2)*PREC,&gpz[1]); if (gpz[1] <= 0) gpz[1] = 0x7fffffff; gdz[1] = 0x7fffffff-gpz[1]; } //Hack for divide overflow
-	else ftol(gposyfrac[cast(size_t)((*cast(ulong *)&vy1)>>31)]*cast(float)gdz[1],&gpz[1]);
+	gixy[0] = (((*cast(int *)&vx1)>>31)<<3)+4; //=sgn(vx1)*4
+	gixy[1] = gixyi[cast(size_t)((*cast(uint *)&vy1)>>31)]; //=sgn(vy1)*4*VSID
+	if (gdz[0] <= 0) { ftol(gposxfrac[cast(size_t)((*cast(uint *)&vx1)>>31)]*fabs(f1)*PREC,&gpz[0]); if (gpz[0] <= 0) gpz[0] = 0x7fffffff; gdz[0] = 0x7fffffff-gpz[0]; } //Hack for divide overflow
+	else ftol(gposxfrac[cast(size_t)((*cast(uint *)&vx1)>>31)]*cast(float)gdz[0],&gpz[0]);
+	if (gdz[1] <= 0) { ftol(gposyfrac[cast(size_t)((*cast(uint *)&vy1)>>31)]*fabs(f2)*PREC,&gpz[1]); if (gpz[1] <= 0) gpz[1] = 0x7fffffff; gdz[1] = 0x7fffffff-gpz[1]; } //Hack for divide overflow
+	else ftol(gposyfrac[cast(size_t)((*cast(uint *)&vy1)>>31)]*cast(float)gdz[1],&gpz[1]);
 
 	c = &cf[128];
 	c.i0 = gscanptr; c.i1 = &gscanptr[cast(size_t)leng];
 	c.z0 = gstartz0; c.z1 = gstartz1;
 	if (giforzsgn < 0)
 	{
-		ftol((vd1-vd0)*cmprecip[cast(size_t)leng],&gi0); ftol(vd0*CMPPREC,&c.cx0);
-		ftol((vz1-vz0)*cmprecip[cast(size_t)leng],&gi1); ftol(vz0*CMPPREC,&c.cy0);
+		//ftol((vd1-vd0)*cmprecip[cast(size_t)leng],&gi0); ftol(vd0*CMPPREC,&c.cx0); ((cast(int*)&gi)[0]);
+		// Fixed gi1 gi0 problem
+		ftol((vd1-vd0)*cmprecip[cast(size_t)leng],&((cast(int*)&gi)[0])); ftol(vd0*CMPPREC,&c.cx0);
+		ftol((vz1-vz0)*cmprecip[cast(size_t)leng],&((cast(int*)&gi)[1])); ftol(vz0*CMPPREC,&c.cy0);
 	}
 	else
 	{
-		ftol((vd0-vd1)*cmprecip[cast(size_t)leng],&gi0); ftol(vd1*CMPPREC,&c.cx0);
-		ftol((vz0-vz1)*cmprecip[cast(size_t)leng],&gi1); ftol(vz1*CMPPREC,&c.cy0);
+		ftol((vd0-vd1)*cmprecip[cast(size_t)leng],&((cast(int*)&gi)[0])); ftol(vd1*CMPPREC,&c.cx0);
+		ftol((vz0-vz1)*cmprecip[cast(size_t)leng],&((cast(int*)&gi)[1])); ftol(vz1*CMPPREC,&c.cy0);
 	}
 	c.cx1 = leng*gi0 + c.cx0;
 	c.cy1 = leng*gi1 + c.cy0;
@@ -1592,7 +1605,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 				if (dmulrethigh(-gposz,c.cx1,c.cy1,gxmax) >= 0)
 				{
 					j = scale(-gposz,c.cx1,c.cy1)+PREC; //+PREC for good luck
-					if (cast(ulong)j < cast(ulong)gxmax) gxmax = j;
+					if (cast(uint)j < cast(uint)gxmax) gxmax = j;
 				}
 			} else gxmax = 0;
 	}
@@ -1607,7 +1620,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 	q = mul64(gdz[0],j); q += cast(ulong)gpz[0];
 	if (q < cast(ulong)gxmax)
 	{
-		gxmax = cast(long)q;
+		gxmax = cast(int)q;
 		static if((USEZBUFFER == 1) && (USEV5ASM != 0))
 		{
 			skycast.dist = 0x7fffffff;
@@ -1617,7 +1630,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 	q = mul64(gdz[1],j); q += cast(ulong)gpz[1];
 	if (q < cast(ulong)gxmax)
 	{
-		gxmax = cast(long)q;
+		gxmax = cast(int)q;
 		static if((USEZBUFFER == 1) && (USEV5ASM != 0))
 		{
 			skycast.dist = 0x7fffffff;
@@ -1626,8 +1639,8 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 
 	if (vx5.sideshademode)
 	{
-		gcsub[0] = gcsub[cast(size_t)(((cast(ulong)gixy[0])>>31)+4)];
-		gcsub[1] = gcsub[cast(size_t)(((cast(ulong)gixy[1])>>31)+6)];
+		gcsub[0] = gcsub[cast(size_t)(((cast(uint)gixy[0])>>31)+4)];
+		gcsub[1] = gcsub[cast(size_t)(((cast(uint)gixy[1])>>31)+6)];
 	}
 
 	static if(USEV5ASM)
@@ -1637,7 +1650,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 			if (skycurlng < 0)
 			{
 				ftol((atan2(vy1,vx1)+PI)*skylngmul-.5,&skycurlng);
-				if (cast(ulong)skycurlng >= skyysiz)
+				if (cast(uint)skycurlng >= skyysiz)
 					skycurlng = ((skyysiz-1)&(j>>31));
 			}
 			else if (skycurdir < 0)
@@ -1655,7 +1668,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 		}
 
 		//resp = 0;
-		grouscanasm(cast(long)gstartv);
+		grouscanasm(cast(int)gstartv);
 		//if (resp)
 		//{
 		//   static char tempbuf[2048], tempbuf2[256];
@@ -1668,7 +1681,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 		//   for(j=0;j<3;j++)
 		//   {
 		//      sprintf(tempbuf2,"%d i0:%d i1:%d z0:%ld z1:%ld cx0:%08x cy0:%08x cx1:%08x cy1:%08x\n",
-		//         j,(long)cf[j].i0-(long)gscanptr,(long)cf[j].i1-(long)gscanptr,cf[j].z0,cf[j].z1,cf[j].cx0,cf[j].cy0,cf[j].cx1,cf[j].cy1);
+		//         j,(int)cf[j].i0-(int)gscanptr,(int)cf[j].i1-(int)gscanptr,cf[j].z0,cf[j].z1,cf[j].cx0,cf[j].cy0,cf[j].cx1,cf[j].cy1);
 		//      strcat(tempbuf,tempbuf2);
 		//   }
 		//   evilquit(tempbuf);
@@ -1677,10 +1690,10 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 	{
 	//------------------------------------------------------------------------
 		ce = c; v = gstartv;
-		j = ((cast(ulong)(gpz[1]-gpz[0]))>>31);
+		j = ((cast(uint)(gpz[1]-gpz[0]))>>31);
 		gx = gpz[cast(size_t)j];
 		ixy = gpixy;
-		if (v == cast(char *)*cast(long *)gpixy) goto drawflor; goto drawceil;
+		if (v == cast(char *)*cast(int *)gpixy) goto drawflor; goto drawceil;
 
 		while (1)
 		{
@@ -1691,7 +1704,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 				if (v[1] > c.z1) c.z1 = v[1];
 				else { do
 				{
-					c.z1--; col = *cast(long *)&v[cast(size_t)((c.z1-v[1])*4+4)];
+					c.z1--; col = *cast(int *)&v[cast(size_t)((c.z1-v[1])*4+4)];
 					while (dmulrethigh(gylookup[c.z1],c.cx1,c.cy1,ogx) < 0)
 					{
 						c.i1.col = col; c.i1--; if (c.i0 > c.i1) goto deletez;
@@ -1700,7 +1713,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 				} while (v[1] != c.z1); }
 			}
 
-			if (v == cast(char *)*cast(long *)ixy) goto drawflor;
+			if (v == cast(char *)*cast(int *)ixy) goto drawflor;
 
 	//drawcwall:;
 			if (v[3] != c.z0)
@@ -1708,7 +1721,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 				if (v[3] < c.z0) c.z0 = v[3];
 				else { do
 				{
-					c.z0++; col = *cast(long *)&v[cast(size_t)((c.z0-v[3])*4-4)];
+					c.z0++; col = *cast(int *)&v[cast(size_t)((c.z0-v[3])*4-4)];
 					while (dmulrethigh(gylookup[c.z0],c.cx0,c.cy0,ogx) >= 0)
 					{
 						c.i0.col = col; c.i0++; if (c.i0 > c.i1) goto deletez;
@@ -1720,14 +1733,14 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 	drawceil:;
 			while (dmulrethigh(gylookup[c.z0],c.cx0,c.y0,gx) >= 0)
 			{
-				c.i0.col = (*cast(long *)&v[-4]); c.i0++; if (c.i0 > c.i1) goto deletez;
+				c.i0.col = (*cast(int *)&v[-4]); c.i0++; if (c.i0 > c.i1) goto deletez;
 				c.cx0 += gi0; c.cy0 += gi1;
 			}
 
 	drawflor:;
 			while (dmulrethigh(gylookup[c.z1],c.cx1,c.cy1,gx) < 0)
 			{
-				c.i1.col = *cast(long *)&v[4]; c.i1--; if (c.i0 > c.i1) goto deletez;
+				c.i1.col = *cast(int *)&v[4]; c.i1--; if (c.i0 > c.i1) goto deletez;
 				c.cx1 -= gi0; c.cy1 -= gi1;
 			}
 
@@ -1737,11 +1750,11 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 			{
 				ixy += gixy[cast(size_t)j];
 				gpz[cast(size_t)j] += gdz[cast(size_t)j];
-				j = ((cast(ulong)(gpz[1]-gpz[0]))>>31);
+				j = ((cast(uint)(gpz[1]-gpz[0]))>>31);
 				ogx = gx; gx = gpz[cast(size_t)j];
 
 				if (gx > gxmax) break;
-				v = cast(char *)*cast(long *)ixy; c = ce;
+				v = cast(char *)*cast(int *)ixy; c = ce;
 			}
 				//Find highest intersecting vbuf slab
 			while (1)
@@ -1754,7 +1767,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 			gy = gylookup[cast(size_t)v[cast(size_t)(v[0]*4+3)]];
 			if (dmulrethigh(gy,c.cx1,c.cy1,ogx) < 0)
 			{
-				col = cast(long)c.i1; dax = c.cx1; day = c.cy1;
+				col = cast(int)c.i1; dax = c.cx1; day = c.cy1;
 				while (dmulrethigh(gylookup[cast(size_t)(v[2]+1)],dax,day,ogx) < 0)
 					{ col -= castdat.sizeof; dax -= gi0; day -= gi1; }
 				ce++; if (ce >= &cf[192]) return; //Give it max=64 entries like ASM
@@ -1779,7 +1792,7 @@ void gline (long leng, float x0, float y0, float x1, float y1)
 	}
 }
 
-static void mmxcoloradd(long *a)
+static void mmxcoloradd(int *a)
 {
 	asm
 	{
@@ -1790,7 +1803,7 @@ static void mmxcoloradd(long *a)
 	}
 }
 
-static void mmxcolorsub(long *a)
+static void mmxcolorsub(int *a)
 {
 	asm
 	{
@@ -1801,7 +1814,7 @@ static void mmxcolorsub(long *a)
 	}
 }
 
-static void addusb(char *a, long b)
+static void addusb(char *a, int b)
 {
 	(*a) += b; if ((*a) < b) (*a) = 255;
 }
@@ -1814,16 +1827,16 @@ static void addusb(char *a, long b)
 	// ³ 15:  233.78 ³ 40: 33.16 ³ 65: 12.77 ³ 90: 6.83 ³ 115: 4.32 ³
 	// ³ 20:  131.65 ³ 45: 26.27 ³ 70: 11.06 ³ 95: 6.17 ³ 120: 4    ³
 	// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÙ
-void setflash (float px, float py, float pz, long flashradius, long numang, long intens)
+void setflash (float px, float py, float pz, int flashradius, int numang, int intens)
 {
 	ulong q;
 	float vx, vy;
-	long i, j, gx, ogx, ixy, col, angoff;
-	long ipx, ipy, ipz, sz0, sz1;
+	int i, j, gx, ogx, ixy, col, angoff;
+	int ipx, ipy, ipz, sz0, sz1;
 	cftype* c, c2, ce;
 	char* v, vs;
 
-	ipx = cast(long)px; ipy = cast(long)py; ipz = cast(long)pz;
+	ipx = cast(int)px; ipy = cast(int)py; ipz = cast(int)pz;
 	vx5.minx = ipx-flashradius; vx5.maxx = ipx+flashradius+1;
 	vx5.miny = ipy-flashradius; vx5.maxy = ipy+flashradius+1;
 	vx5.minz = ipz-flashradius; vx5.maxz = ipz+flashradius+1;
@@ -1836,11 +1849,11 @@ void setflash (float px, float py, float pz, long flashradius, long numang, long
 
 	gposxfrac[1] = px - cast(float)(ipx); gposxfrac[0] = 1 - gposxfrac[1];
 	gposyfrac[1] = py - cast(float)(ipy); gposyfrac[0] = 1 - gposyfrac[1];
-	gpixy = cast(long)&sptr[cast(size_t)(ipy*VSID + ipx)];
+	gpixy = cast(int)&sptr[cast(size_t)(ipy*VSID + ipx)];
 	ftol(pz*FPREC-.5f,&gposz);
 	for(gylookup[0]=-gposz,i=1;i<260;i++) gylookup[cast(size_t)i] = gylookup[cast(size_t)(i-1)]+FPREC;
 
-	vs = cast(char *)*cast(long *)gpixy;
+	vs = cast(char *)*cast(int *)gpixy;
 	if (ipz >= vs[1])
 	{
 		do
@@ -1862,12 +1875,12 @@ void setflash (float px, float py, float pz, long flashradius, long numang, long
 		ftol(FPREC/fabs(vx),&gdz[0]);
 		ftol(FPREC/fabs(vy),&gdz[1]);
 
-		gixy[0] = (((*cast(long *)&vx)>>31) & (     -8)) +      4;
-		gixy[1] = (((*cast(long *)&vy)>>31) & (VSID*-8)) + VSID*4;
+		gixy[0] = (((*cast(int *)&vx)>>31) & (     -8)) +      4;
+		gixy[1] = (((*cast(int *)&vy)>>31) & (VSID*-8)) + VSID*4;
 		if (gdz[0] < 0) { gpz[0] = 0x7fffffff; gdz[0] = 0; } //Hack for divide overflow
-		else ftol(gposxfrac[cast(size_t)((*cast(ulong *)&vx)>>31)]*cast(float)gdz[0],&gpz[0]);
+		else ftol(gposxfrac[cast(size_t)((*cast(uint *)&vx)>>31)]*cast(float)gdz[0],&gpz[0]);
 		if (gdz[1] < 0) { gpz[1] = 0x7fffffff; gdz[1] = 0; } //Hack for divide overflow
-		else ftol(gposyfrac[cast(size_t)((*cast(ulong *)&vy)>>31)]*cast(float)gdz[1],&gpz[1]);
+		else ftol(gposyfrac[cast(size_t)((*cast(uint *)&vy)>>31)]*cast(float)gdz[1],&gpz[1]);
 
 		c = ce = &cf[128];
 		v = vs; c.z0 = sz0; c.z1 = sz1;
@@ -1882,16 +1895,16 @@ void setflash (float px, float py, float pz, long flashradius, long numang, long
 			//Clip borders safely (MUST use integers!) - don't wrap around
 		if (gixy[0] < 0) j = ipx; else j = VSID-1-ipx;
 		q = mul64(gdz[0],j); q += cast(ulong)gpz[0];
-		if (q < cast(ulong)gxmax) gxmax = cast(long)q;
+		if (q < cast(ulong)gxmax) gxmax = cast(int)q;
 		if (gixy[1] < 0) j = ipy; else j = VSID-1-ipy;
 		q = mul64(gdz[1],j); q += cast(ulong)gpz[1];
-		if (q < cast(ulong)gxmax) gxmax = cast(long)q;
+		if (q < cast(ulong)gxmax) gxmax = cast(int)q;
 
 	//------------------------------------------------------------------------
-		j = ((cast(ulong)(gpz[1]-gpz[0]))>>31);
+		j = ((cast(uint)(gpz[1]-gpz[0]))>>31);
 		gx = gpz[cast(size_t)j];
 		ixy = gpixy;
-		if (v == cast(char *)*cast(long *)gpixy) goto fdrawflor; goto fdrawceil;
+		if (v == cast(char *)*cast(int *)gpixy) goto fdrawflor; goto fdrawceil;
 
 		while (1)
 		{
@@ -1902,16 +1915,16 @@ fdrawfwall:;
 				if (v[1] > c.z1) c.z1 = v[1];
 				else { do
 				{
-					c.z1--; col = cast(long)&v[cast(size_t)((c.z1-v[1])*4+4)];
+					c.z1--; col = cast(int)&v[cast(size_t)((c.z1-v[1])*4+4)];
 					while (dmulrethigh(gylookup[cast(size_t)c.z1],gfc[cast(size_t)c.cx1].x,gfc[cast(size_t)c.cx1].y,ogx) < 0)
 					{
-						mmxcoloradd(cast(long *)col); c.cx1--;
+						mmxcoloradd(cast(int *)col); c.cx1--;
 						if (c.cx0 > c.cx1) goto fdeletez;
 					}
 				} while (v[1] != c.z1); }
 			}
 
-			if (v == cast(char *)*cast(long *)ixy) goto fdrawflor;
+			if (v == cast(char *)*cast(int *)ixy) goto fdrawflor;
 
 //fdrawcwall:;
 			if (v[3] != c.z0)
@@ -1919,10 +1932,10 @@ fdrawfwall:;
 				if (v[3] < c.z0) c.z0 = v[3];
 				else { do
 				{
-					c.z0++; col = cast(long)&v[cast(size_t)((c.z0-v[3])*4-4)];
+					c.z0++; col = cast(int)&v[cast(size_t)((c.z0-v[3])*4-4)];
 					while (dmulrethigh(gylookup[cast(size_t)c.z0],gfc[cast(size_t)c.cx0].x,gfc[cast(size_t)c.cx0].y,ogx) >= 0)
 					{
-						mmxcoloradd(cast(long *)col); c.cx0++;
+						mmxcoloradd(cast(int *)col); c.cx0++;
 						if (c.cx0 > c.cx1) goto fdeletez;
 					}
 				} while (v[3] != c.z0); }
@@ -1931,14 +1944,14 @@ fdrawfwall:;
 fdrawceil:;
 			while (dmulrethigh(gylookup[cast(size_t)c.z0],gfc[cast(size_t)c.cx0].x,gfc[cast(size_t)c.cx0].y,gx) >= 0)
 			{
-				mmxcoloradd(cast(long *)&v[-4]); c.cx0++;
+				mmxcoloradd(cast(int *)&v[-4]); c.cx0++;
 				if (c.cx0 > c.cx1) goto fdeletez;
 			}
 
 fdrawflor:;
 			while (dmulrethigh(gylookup[cast(size_t)c.z1],gfc[cast(size_t)c.cx1].x,gfc[cast(size_t)c.cx1].y,gx) < 0)
 			{
-				mmxcoloradd(cast(long *)&v[4]); c.cx1--;
+				mmxcoloradd(cast(int *)&v[4]); c.cx1--;
 				if (c.cx0 > c.cx1) goto fdeletez;
 			}
 
@@ -1948,11 +1961,11 @@ fafterdelete:;
 			{
 				ixy += gixy[cast(size_t)j];
 				gpz[cast(size_t)j] += gdz[cast(size_t)j];
-				j = ((cast(ulong)(gpz[1]-gpz[0]))>>31);
+				j = ((cast(uint)(gpz[1]-gpz[0]))>>31);
 				ogx = gx; gx = gpz[cast(size_t)j];
 
 				if (gx > gxmax) break;
-				v = cast(char *)*cast(long *)ixy; c = ce;
+				v = cast(char *)*cast(int *)ixy; c = ce;
 			}
 				//Find highest intersecting vbuf slab
 			while (1)
@@ -1995,13 +2008,13 @@ static if(ESTNORMRAD == 2)
 		1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5	
 	];
 
-	//static long bitsum[32] =
+	//static int bitsum[32] =
 	//[
 	//   0,-2,-1,-3, 0,-2,-1,-3, 1,-1, 0,-2, 1,-1, 0,-2,
 	//   2, 0, 1,-1, 2, 0, 1,-1, 3, 1, 2, 0, 3, 1, 2, 0
 	//];
 
-	static long bitsnum[32] =
+	static int bitsnum[32] =
 	[
 		0        ,1-(2<<16),1-(1<<16),2-(3<<16),
 		1        ,2-(2<<16),2-(1<<16),3-(3<<16),
@@ -2016,12 +2029,12 @@ static if(ESTNORMRAD == 2)
 	static float fsqrecip[5860]; //75*75 + 15*15 + 3*3 = 5859 is max value (5*5*5 box)
 }
 
-void estnorm(long x, long y, long z, point3d *fp)
+void estnorm(int x, int y, int z, point3d *fp)
 {
 	lpoint3d n;
-	long *lptr;
-	long xx, yy, zz, i, j, k;
-	long b[5];
+	int *lptr;
+	int xx, yy, zz, i, j, k;
+	int b[5];
 	float f;
 
 	n.x = 0; n.y = 0; n.z = 0;
@@ -2032,7 +2045,7 @@ void estnorm(long x, long y, long z, point3d *fp)
 		{
 				//x,y not close enough to cache: calls expandbitstack 25 times :(
 			xbsox = x; xbsoy = y; xbsof = 24*5;
-			lptr = cast(long *)(&xbsbuf[24*5+1]);
+			lptr = cast(int *)(&xbsbuf[24*5+1]);
 			for(yy=-2;yy<=2;yy++)
 				for(xx=-2;xx<=2;xx++,lptr-=10)
 					expandbitstack(x+xx,y+yy,cast(long *)lptr);
@@ -2040,12 +2053,12 @@ void estnorm(long x, long y, long z, point3d *fp)
 		else if (x != xbsox)
 		{
 				//shift xbsbuf cache left/right: calls expandbitstack 5 times :)
-			if (x < xbsox) { xx = -2; xbsof -= 24*5; lptr = cast(long *)(&xbsbuf[cast(size_t)(xbsof+1)]); }
-						 else { xx = 2; lptr = cast(long *)(&xbsbuf[cast(size_t)(xbsof-5*5+1)]); xbsof -= 1*5; }
+			if (x < xbsox) { xx = -2; xbsof -= 24*5; lptr = cast(int *)(&xbsbuf[cast(size_t)(xbsof+1)]); }
+						 else { xx = 2; lptr = cast(int *)(&xbsbuf[cast(size_t)(xbsof-5*5+1)]); xbsof -= 1*5; }
 			xbsox = x; if (xbsof < 0) xbsof += 25*5;
 			for(yy=-2;yy<=2;yy++)
 			{
-				if (lptr < cast(long *)&xbsbuf[1]) lptr += 25*10;
+				if (lptr < cast(int *)&xbsbuf[1]) lptr += 25*10;
 				expandbitstack(x+xx,y+yy,cast(long *)lptr);
 				lptr -= 5*10;
 			}
@@ -2053,12 +2066,12 @@ void estnorm(long x, long y, long z, point3d *fp)
 		else if (y != xbsoy)
 		{
 				//shift xbsbuf cache up/down: calls expandbitstack 5 times :)
-			if (y < xbsoy) { yy = -2; xbsof -= 20*5; lptr = cast(long *)(&xbsbuf[cast(size_t)(xbsof+1)]); }
-						 else { yy = 2; lptr = cast(long *)(&xbsbuf[cast(size_t)(xbsof+1)]); xbsof -= 5*5; }
+			if (y < xbsoy) { yy = -2; xbsof -= 20*5; lptr = cast(int *)(&xbsbuf[cast(size_t)(xbsof+1)]); }
+						 else { yy = 2; lptr = cast(int *)(&xbsbuf[cast(size_t)(xbsof+1)]); xbsof -= 5*5; }
 			xbsoy = y; if (xbsof < 0) xbsof += 25*5;
 			for(xx=-2;xx<=2;xx++)
 			{
-				if (lptr < cast(long *)&xbsbuf[1]) lptr += 25*10;
+				if (lptr < cast(int *)&xbsbuf[1]) lptr += 25*10;
 				expandbitstack(x+xx,y+yy,cast(long *)lptr);
 				lptr -= 1*10;
 			}
@@ -2066,13 +2079,13 @@ void estnorm(long x, long y, long z, point3d *fp)
 
 		z -= 2;
 		if ((z&31) <= 27) //2 <= (z&31) <= 29
-			{ lptr = cast(long *)(cast(long)(&xbsbuf[cast(size_t)(xbsof+1)]) + ((z&~31)>>3)); z &= 31; }
+			{ lptr = cast(int *)(cast(int)(&xbsbuf[cast(size_t)(xbsof+1)]) + ((z&~31)>>3)); z &= 31; }
 		else
-			{ lptr = cast(long *)(cast(long)(&xbsbuf[cast(size_t)(xbsof+1)]) + (z>>3)); z &= 7; }
+			{ lptr = cast(int *)(cast(int)(&xbsbuf[cast(size_t)(xbsof+1)]) + (z>>3)); z &= 7; }
 
 		for(yy=-2;yy<=2;yy++)
 		{
-			if (lptr >= cast(long *)&xbsbuf[1+10*5])
+			if (lptr >= cast(int *)&xbsbuf[1+10*5])
 			{
 				b[0] = ((lptr[  0]>>z)&31); b[1] = ((lptr[-10]>>z)&31);
 				b[2] = ((lptr[-20]>>z)&31); b[3] = ((lptr[-30]>>z)&31);
@@ -2080,11 +2093,11 @@ void estnorm(long x, long y, long z, point3d *fp)
 			}
 			else
 			{
-				b[0] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(long *)&xbsbuf[1]) lptr += 25*10;
-				b[1] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(long *)&xbsbuf[1]) lptr += 25*10;
-				b[2] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(long *)&xbsbuf[1]) lptr += 25*10;
-				b[3] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(long *)&xbsbuf[1]) lptr += 25*10;
-				b[4] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(long *)&xbsbuf[1]) lptr += 25*10;
+				b[0] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(int *)&xbsbuf[1]) lptr += 25*10;
+				b[1] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(int *)&xbsbuf[1]) lptr += 25*10;
+				b[2] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(int *)&xbsbuf[1]) lptr += 25*10;
+				b[3] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(int *)&xbsbuf[1]) lptr += 25*10;
+				b[4] = ((lptr[0]>>z)&31); lptr -= 10; if (lptr < cast(int *)&xbsbuf[1]) lptr += 25*10;
 			}
 
 				//Make filter spherical
@@ -2156,4 +2169,31 @@ void estnorm(long x, long y, long z, point3d *fp)
 	}
 }
 
-// 1729 long vspan
+static int vspan(int x, int y0, int y1)
+{
+	int y, yy;
+	int* bbufx;
+
+	y = (y0>>5); bbufx = &bbuf[x][0];
+	if ((y1>>5) == y)
+	{
+		yy = bbufx[y]; bbufx[y] &= ~(p2m[y1&31]^p2m[y0&31]);
+		return(bbufx[y] ^ yy);
+	}
+
+	if (!(bbufx[y]&(~p2m[y0&32])))
+		if(!(bbufx[y1>>5]&p2m[y1&32]))
+		{
+			for(yy=(y1>>5)-1;yy>y;yy--)
+				if(bbufx[yy]) goto vspan_skip;
+			return 0;
+		}
+	vspan_skip:
+	bbufx[y] &= p2m[y0&31];
+	bbufx[y1>>5] &= (~p2m[y1&32]);
+	for(yy=(y1>>5)-1; yy>y; yy--) bbufx[yy] = 0;
+
+	return 1;
+}
+
+// line: 1754 docube
