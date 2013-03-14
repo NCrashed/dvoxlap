@@ -33,7 +33,7 @@ align(1) struct kv6voxtype
 {
 	int col;
 	ushort z;
-	char vis, dir;
+	ubyte vis, dir;
 }
 
 align(1) struct kv6data
@@ -58,8 +58,8 @@ align(1) struct hingertype
 	point3d v[2];
 	/// min value / max value
 	short vmin, vmax;
-	char htype;
-	char filler[7];
+	ubyte htype;
+	ubyte filler[7];
 }
 
 align(1) struct seqtyp
@@ -150,7 +150,7 @@ align(1) struct lightsrctype
 /// Used by setspans/meltspans. Ordered this way to allow sorting as longs!
 align(1) struct vspans
 {
-	char z1, z0, x, y;
+	ubyte z1, z0, x, y;
 }
 
 /// MUST be even number for alignment!
@@ -225,24 +225,24 @@ struct vx5_type
 vx5_type vx5;
 
 /// Initialization functions:
-extern(C) int initvoxlap();
+/*extern(C) int initvoxlap();
 
 extern(C) void uninitvoxlap();
 
 /// File related functions:
-extern(C) int loadsxl(const char* , char**, char**, char**);
-extern(C) char* parspr(vx5sprite*, char**);
+extern(C) int loadsxl(const ubyte* , ubyte**, ubyte**, ubyte**);
+extern(C) ubyte* parspr(vx5sprite*, ubyte**);
 extern(C) void loadnul(dpoint3d *, dpoint3d *, dpoint3d *, dpoint3d *);
-extern(C) int loaddta(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) int loadpng(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) void loadbsp(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) int loadvxl(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) int savevxl(const char*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
-extern(C) int loadsky(const char*);
+extern(C) int loaddta(const ubyte*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int loadpng(const ubyte*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) void loadbsp(const ubyte*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int loadvxl(const ubyte*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int savevxl(const ubyte*, dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*);
+extern(C) int loadsky(const ubyte*);
 
 /// Screen related functions:
 extern(C) void voxsetframebuffer(int, int, int, int);
-extern(C) void setsideshades(char, char, char, char, char, char);
+extern(C) void setsideshades(ubyte, ubyte, ubyte, ubyte, ubyte, ubyte);
 extern(C) void setcamera(dpoint3d*, dpoint3d*, dpoint3d*, dpoint3d*, float, float, float);
 extern(C) void opticast();
 extern(C) void drawpoint2d(int, int, int);
@@ -253,11 +253,11 @@ extern(C) int project2d(float, float, float, float*, float*, float*);
 extern(C) void drawspherefill(float, float, float, float, int);
 extern(C) void drawpicinquad(int, int, int, int, int, int, int, int, float, float, float, float, float, float, float, float);
 extern(C) void drawpolyquad (int, int, int, int, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float);
-extern(C) void print4x6 (int, int, int, int, const char *, ...);
-extern(C) void print6x8 (int, int, int, int, const char *, ...);
+extern(C) void print4x6 (int, int, int, int, const ubyte *, ...);
+extern(C) void print6x8 (int, int, int, int, const ubyte *, ...);
 extern(C) void drawtile (int, int, int, int, int, int, int, int, int, int, int, int);
-extern(C) int screencapture32bit (const char *);
-extern(C) int surroundcapture32bit (dpoint3d *, const char *, int);
+extern(C) int screencapture32bit (const ubyte *);
+extern(C) int surroundcapture32bit (dpoint3d *, const ubyte *, int);
 
 /// Sprite related functions:
 extern(C) kv6data *getkv6 (const char *);
@@ -285,10 +285,10 @@ extern(C) void sprhitscan (dpoint3d *, dpoint3d *, vx5sprite *, lpoint3d *, kv6v
 extern(C) double findmaxcr (double, double, double, double);
 extern(C) void clipmove (dpoint3d *, dpoint3d *, double);
 extern(C) int triscan (point3d *, point3d *, point3d *, point3d *, lpoint3d *);
-extern(C) void estnorm (int, int, int, point3d *);
+//extern(C) void estnorm (int, int, int, point3d *);
 
 	//VXL reading functions (fast!):
-extern(C) int isvoxelsolid (int, int, int);
+//extern(C) int isvoxelsolid (int, int, int);
 extern(C) int anyvoxelsolid (int, int, int, int);
 extern(C) int anyvoxelempty (int, int, int, int);
 extern(C) int getfloorz (int, int, int);
@@ -365,7 +365,7 @@ extern(C) void kzclose ();
 
 extern(C) void kzfindfilestart (const char *); //pass wildcard string
 extern(C) int kzfindfile (char *); //you alloc buf, returns 1:found,0:~found
-
+*/
 //============================================================
 //	CPP PART
 //============================================================
@@ -394,7 +394,7 @@ extern void nextpage();
 extern void evilquit(const char *);
 
 enum VOXSIZ = VSID*VSID*128;
-char *sptr[(VSID*VSID*4)/3];
+ubyte *sptr[(VSID*VSID*4)/3];
 
 static int* vbuf = null, vbit = null;
 static int vbiti;
@@ -421,7 +421,7 @@ static int vbiti;
 	//Memory management variables:
 
 enum MAXCSIZ = 1028;
-char tbuf[MAXCSIZ];
+ubyte tbuf[MAXCSIZ];
 int tbuf2[MAXZDIM*3];
 int templongbuf[MAXZDIM];
 
@@ -490,10 +490,10 @@ static float gihx, gihy, gihzz, grd;
 static float[2] gposxfrac, gposyfrac;
 static int gposz, giforzsgn, gstartz0, gstartz1;
 static int[2] gixyi;
-static char *gstartv;
+static ubyte *gstartv;
 
 int backtag, backedup = -1, bacx0, bacy0, bacx1, bacy1;
-char *bacsptr[262144];
+ubyte* bacsptr[262144];
 
 // Flash variables
 enum LOGFLASHVANG = 9;
@@ -1079,7 +1079,7 @@ int curcolfunc (lpoint3d *p) { return vx5.curcol; }
 
 int floorcolfunc(lpoint3d *p)
 {
-	char *v;
+	ubyte *v;
 	for(v=sptr[cast(size_t)(p.y*VSID+p.x)];(p.z>v[2]) && (v[0]);v+=v[0]*4) {}
 	return *cast(int *)&v[4];	
 }
@@ -1228,15 +1228,15 @@ int hpngcolfunc (point3d *p)
 	return(vx5.pic[cast(size_t)((v-gysizcache)*(vx5.bpl>>2)+(u-gxsizcache))]>>24);
 }
 
-static int slng (const char *s)
+static int slng (const ubyte *s)
 {
-	char *v;
+	ubyte *v;
 
-	for(v=cast(char*)s;v[0];v+=v[0]*4) {}
+	for(v=cast(ubyte*)s;v[0];v+=v[0]*4) {}
 	return(cast(int)v-cast(int)s+(v[2]-v[1]+1)*4+4);
 }
 
-void voxdealloc (const char *v)
+void voxdealloc (const ubyte *v)
 {
 	int i, j;
 	i = ((cast(int)v-cast(int)vbuf)>>2); j = (slng(v)>>2)+i;
@@ -1258,7 +1258,7 @@ void voxdealloc (const char *v)
 }
 
 	//Note: danum MUST be a multiple of 4!
-char *voxalloc (int danum)
+ubyte *voxalloc (int danum)
 {
 	int i, badcnt, p0, p1, vend;
 
@@ -1274,7 +1274,7 @@ char *voxalloc (int danum)
 
 			vbiti = p0+danum;
 			for(i=p0;i<vbiti;i++) vbit[cast(size_t)(i>>5)] |= (1<<i);
-			return(cast(char *)(&vbuf[cast(size_t)p0]));
+			return(cast(ubyte *)(&vbuf[cast(size_t)p0]));
 allocnothere:;
 		}
 		vbiti = 0; badcnt++;
@@ -1284,7 +1284,7 @@ allocnothere:;
 
 int isvoxelsolid (int x, int y, int z)
 {
-	char *v;
+	ubyte *v;
 
 	if (cast(uint)(x|y) >= VSID) return 0;
 	v = sptr[cast(size_t)(y*VSID+x)];
@@ -1300,7 +1300,7 @@ int isvoxelsolid (int x, int y, int z)
 	//Returns 1 if any voxels in range (x,y,z0) to (x,y,z1-1) are solid, else 0
 int anyvoxelsolid (int x, int y, int z0, int z1)
 {
-	char *v;
+	ubyte *v;
 
 		//         v1.....v3   v1.....v3    v1.......................>
 		//                z0.........z1
@@ -1318,7 +1318,7 @@ int anyvoxelsolid (int x, int y, int z0, int z1)
 	//Returns 1 if any voxels in range (x,y,z0) to (x,y,z1-1) are empty, else 0
 int anyvoxelempty (int x, int y, int z0, int z1)
 {
-	char *v;
+	ubyte *v;
 
 		//         v1.....v3   v1.....v3    v1.......................>
 		//                z0.........z1
@@ -1336,7 +1336,7 @@ int anyvoxelempty (int x, int y, int z0, int z1)
 	//Returns z of first solid voxel under (x,y,z). Returns z if in solid.
 int getfloorz (int x, int y, int z)
 {
-	char *v;
+	ubyte *v;
 
 	if (cast(uint)(x|y) >= VSID) return(z);
 	v = sptr[cast(size_t)(y*VSID+x)];
@@ -1357,7 +1357,7 @@ int getfloorz (int x, int y, int z)
 int getcube (int x, int y, int z)
 {
 	int ceilnum;
-	char *v;
+	ubyte *v;
 
 	if (cast(uint)(x|y) >= VSID) return(0);
 	v = sptr[cast(size_t)(y*VSID+x)];
@@ -1389,7 +1389,7 @@ int getcube (int x, int y, int z)
 	//         px,py: parameters for setting unexposed voxel colors
 	//Outputs: cbuf[MAXCSIZ]: compressed output buffer
 	//Returns: n: length of compressed buffer (in bytes)
-int compilestack (int *uind, int *n0, int *n1, int *n2, int *n3, char *cbuf, int px, int py)
+int compilestack (int *uind, int *n0, int *n1, int *n2, int *n3, ubyte *cbuf, int px, int py)
 {
 	int oz, onext, n, cp2, cp1, cp0, rp1, rp0;
 	lpoint3d p;
@@ -1400,8 +1400,8 @@ int compilestack (int *uind, int *n0, int *n1, int *n2, int *n3, char *cbuf, int
 	oz = -1;
 	p.z = -1; while (uind[cast(size_t)(p.z+1)] == -1) p.z++;
 	onext = 0;
-	cbuf[1] = cast(char)(p.z+1);
-	cbuf[2] = cast(char)(p.z+1);
+	cbuf[1] = cast(ubyte)(p.z+1);
+	cbuf[2] = cast(ubyte)(p.z+1);
 	cbuf[3] = 0;  //Top z0 (filler, not used yet)
 	n = 4;
 	cp1 = 1; cp0 = 0;
@@ -1429,10 +1429,10 @@ int compilestack (int *uind, int *n0, int *n1, int *n2, int *n3, char *cbuf, int
 			else if ((rp0 < cp1) && (rp0 < rp1))
 			{
 				if (oz < 0) oz = p.z;
-				cbuf[cast(size_t)onext] = cast(char)(((n-onext)>>2)); onext = n;
-				cbuf[cast(size_t)(n+1)] = cast(char)p.z;
-				cbuf[cast(size_t)(n+2)] = cast(char)(p.z-1);
-				cbuf[cast(size_t)(n+3)] = cast(char)oz;
+				cbuf[cast(size_t)onext] = cast(ubyte)(((n-onext)>>2)); onext = n;
+				cbuf[cast(size_t)(n+1)] = cast(ubyte)p.z;
+				cbuf[cast(size_t)(n+2)] = cast(ubyte)(p.z-1);
+				cbuf[cast(size_t)(n+3)] = cast(ubyte)oz;
 				n += 4; oz = -1;
 			}
 			rp1 = rp0; rp0 = cp1;
@@ -1441,7 +1441,7 @@ int compilestack (int *uind, int *n0, int *n1, int *n2, int *n3, char *cbuf, int
 			//Add color
 		if ((cp1 == 1) || ((cp1 == 2) && ((!cp0) || (!cp2))))
 		{
-			if (cbuf[cast(size_t)(onext+2)] == p.z-1) cbuf[cast(size_t)(onext+2)] = cast(char)p.z;
+			if (cbuf[cast(size_t)(onext+2)] == p.z-1) cbuf[cast(size_t)(onext+2)] = cast(ubyte)p.z;
 			if (uind[cast(size_t)p.z] == -2) *cast(int *)&cbuf[cast(size_t)n] = vx5.colfunc(&p);
 								 else *cast(int *)&cbuf[cast(size_t)n] = uind[cast(size_t)p.z];
 			n += 4;
@@ -1517,7 +1517,7 @@ void expandbitstack (int x, int y, long *bind)
 void expandstack (int x, int y, int *uind)
 {
 	int z, topz;
-	char* v, v2;
+	ubyte* v, v2;
 
 	if ((x|y)&(~(VSID-1))) { clearbuf(cast(void *)uind,MAXZDIM,0); return; }
 
@@ -1550,7 +1550,7 @@ void gline (int leng, float x0, float y0, float x1, float y1)
 	{
 		int gx, ogx, gy, ixy, col, dax, day;
 		cftype* c2, ce;
-		char *v;
+		ubyte *v;
 	}
 
 	vd0 = x0*gistr.x + y0*gihei.x + gcorn[0].x;
@@ -1671,7 +1671,7 @@ void gline (int leng, float x0, float y0, float x1, float y1)
 		grouscanasm(cast(int)gstartv);
 		//if (resp)
 		//{
-		//   static char tempbuf[2048], tempbuf2[256];
+		//   static ubyte tempbuf[2048], tempbuf2[256];
 		//   sprintf(tempbuf,"EAX:%08x\tMM0:%08x%08x\nebx:%08x\tMM1:%08x%08x\necx:%08x\tMM2:%08x%08x\nedx:%08x\tmm3:%08x%08x\nesi:%08x\tmm4:%08x%08x\nedi:%08x\tmm5:%08x%08x\nebp:%08x\tmm6:%08x%08x\nesp:%08x\tmm7:%08x%08x\n",
 		//      rEAX,remm[ 1],remm[ 0], rebx,remm[ 3],remm[ 2],
 		//      recx,remm[ 5],remm[ 4], redx,remm[ 7],remm[ 6],
@@ -1693,7 +1693,7 @@ void gline (int leng, float x0, float y0, float x1, float y1)
 		j = ((cast(uint)(gpz[1]-gpz[0]))>>31);
 		gx = gpz[cast(size_t)j];
 		ixy = gpixy;
-		if (v == cast(char *)*cast(int *)gpixy) goto drawflor; goto drawceil;
+		if (v == cast(ubyte *)*cast(int *)gpixy) goto drawflor; goto drawceil;
 
 		while (1)
 		{
@@ -1713,7 +1713,7 @@ void gline (int leng, float x0, float y0, float x1, float y1)
 				} while (v[1] != c.z1); }
 			}
 
-			if (v == cast(char *)*cast(int *)ixy) goto drawflor;
+			if (v == cast(ubyte *)*cast(int *)ixy) goto drawflor;
 
 	//drawcwall:;
 			if (v[3] != c.z0)
@@ -1754,7 +1754,7 @@ void gline (int leng, float x0, float y0, float x1, float y1)
 				ogx = gx; gx = gpz[cast(size_t)j];
 
 				if (gx > gxmax) break;
-				v = cast(char *)*cast(int *)ixy; c = ce;
+				v = cast(ubyte *)*cast(int *)ixy; c = ce;
 			}
 				//Find highest intersecting vbuf slab
 			while (1)
@@ -1814,7 +1814,7 @@ static void mmxcolorsub(int *a)
 	}
 }
 
-static void addusb(char *a, int b)
+static void addusb(ubyte *a, int b)
 {
 	(*a) += b; if ((*a) < b) (*a) = 255;
 }
@@ -1834,7 +1834,7 @@ void setflash (float px, float py, float pz, int flashradius, int numang, int in
 	int i, j, gx, ogx, ixy, col, angoff;
 	int ipx, ipy, ipz, sz0, sz1;
 	cftype* c, c2, ce;
-	char* v, vs;
+	ubyte* v, vs;
 
 	ipx = cast(int)px; ipy = cast(int)py; ipz = cast(int)pz;
 	vx5.minx = ipx-flashradius; vx5.maxx = ipx+flashradius+1;
@@ -1853,7 +1853,7 @@ void setflash (float px, float py, float pz, int flashradius, int numang, int in
 	ftol(pz*FPREC-.5f,&gposz);
 	for(gylookup[0]=-gposz,i=1;i<260;i++) gylookup[cast(size_t)i] = gylookup[cast(size_t)(i-1)]+FPREC;
 
-	vs = cast(char *)*cast(int *)gpixy;
+	vs = cast(ubyte *)*cast(int *)gpixy;
 	if (ipz >= vs[1])
 	{
 		do
@@ -1904,7 +1904,7 @@ void setflash (float px, float py, float pz, int flashradius, int numang, int in
 		j = ((cast(uint)(gpz[1]-gpz[0]))>>31);
 		gx = gpz[cast(size_t)j];
 		ixy = gpixy;
-		if (v == cast(char *)*cast(int *)gpixy) goto fdrawflor; goto fdrawceil;
+		if (v == cast(ubyte *)*cast(int *)gpixy) goto fdrawflor; goto fdrawceil;
 
 		while (1)
 		{
@@ -1924,7 +1924,7 @@ fdrawfwall:;
 				} while (v[1] != c.z1); }
 			}
 
-			if (v == cast(char *)*cast(int *)ixy) goto fdrawflor;
+			if (v == cast(ubyte *)*cast(int *)ixy) goto fdrawflor;
 
 //fdrawcwall:;
 			if (v[3] != c.z0)
@@ -1965,7 +1965,7 @@ fafterdelete:;
 				ogx = gx; gx = gpz[cast(size_t)j];
 
 				if (gx > gxmax) break;
-				v = cast(char *)*cast(int *)ixy; c = ce;
+				v = cast(ubyte *)*cast(int *)ixy; c = ce;
 			}
 				//Find highest intersecting vbuf slab
 			while (1)
@@ -2197,3 +2197,566 @@ static int vspan(int x, int y0, int y1)
 }
 
 // line: 1754 docube
+static int docube(int x, int y, int z)
+{
+	int x0, y0, x1, y1, g;
+
+	ffxptr = &ffx[(z+1)*z-1];
+	x0 = cast(int)ffxptr[x].x; x1 = cast(int)ffxptr[x].y;
+	y0 = cast(int)ffxptr[y].x; y1 = cast(int)ffxptr[y].y;
+	for(g=0;x0<x1;x0++) g |=vspan(x0,y0,y1);
+	return g;
+}
+
+void setnormflash(float px, float py, float pz, int flashradius, int intens)
+{
+	point3d fp;
+	float f, fintens;
+	int i, j, k, l, m, x, y, z, xx, yy, xi, yi, xe, ye, ipx, ipy, ipz;
+	int ceilnum, sq;
+	ubyte *v;
+
+	ipx = cast(int)px; ipy = cast(int)py; ipz = cast(int)pz;
+	vx5.minx = ipx - flashradius+1; vx5.maxx = ipx+flashradius;
+	vx5.miny = ipy - flashradius+1; vx5.maxy = ipy+flashradius;
+	vx5.minz = ipz - flashradius+1; vx5.maxz = ipz+flashradius;
+
+	if(isvoxelsolid(ipx, ipy, ipz)) return;
+
+	fintens = intens;
+	if(flashradius > (GSIZ>>1)) flashradius = (GSIZ >> 1);
+
+	xbsox = -17;
+
+	//       ÚÄ 7Ä¿
+	//      11  . 8
+	//  ÚÄ11ÄÅÄ 4ÄÅÄ 8ÄÂÄ 7Ä¿
+	//  3 |  0  + 1  | 2  + 3
+	//  ÀÄ10ÄÅÄ 5ÄÅÄ 9ÄÁÄ 6ÄÙ
+	//      10  . 9
+	//       ÀÄ 6ÄÙ
+
+	//Do left&right faces of the cube	
+	for(j=1; j>=0; j--)
+	{
+		clearbuf(cast(void*)bbuf, GSIZ*(GSIZ>>5), 0xffffffff);
+		for(y=1; y<flashradius;y++)
+		{
+			if(j) yy = ipy-y; else yy = ipy + y;
+			for(xi=1,xe=y+1;xi>=-1;xi-=2,xe=-xe)
+				for(x=(xi>>1);x!=xe;x+=xi)
+				{
+					xx = ipx+x;
+					if(cast(uint)(xx|yy) >= VSID) continue;
+					v = sptr[yy*VSID+xx]; i=0; sq=x*x+y*y;
+					while(true)
+					{
+						for(z=v[1];z<=v[2];z++)
+						{
+							if(z-ipz < 0) { tbuf2[i] = z-ipz; tbuf2[i+1] = cast(int)&v[(z-v[1])*4+4]; i+= 2;}
+							else
+							{
+								//if (z-ipz < -y) continue; //TEMP HACK!!!
+								if (z-ipz > y) goto normflash_exwhile1;
+								if (!docube(x,z-ipz,y)) continue;
+								estnorm(xx,yy,z,&fp); if(j) fp.y = -fp.y;
+								f = fp.x*x + fp.y*y + fp.z*(z-ipz);
+								if(*cast(int *)&f > 0) addusb(&v[(z-v[1])*4+7], cast(int)(f*fintens/((z-ipz)*(z-ipz)+sq)));
+							}
+						}
+						if (!v[0]) break;
+						ceilnum = v[2]-v[1]-v[0]+2; v += v[0]*4;
+						for(z=v[3]+ceilnum;z<v[3];z++)
+						{
+							if (z < ipz) { tbuf2[i] = z-ipz; tbuf2[i+1] = cast(int)&v[(z-v[3])*4]; i += 2; }
+							else
+							{
+								//if (z-ipz < -y) continue; // TEMP HACK!!!
+								if(z-ipz > y) goto normflash_exwhile1;
+								if (!docube(x,z-ipz,y)) continue;
+								estnorm(xx, yy, z, &fp); if(j) fp.y = -fp.y;
+								f = fp.x*x + fp.y*y + fp.z*(z-ipz);
+								if (*cast(int *)&f > 0) addusb(&v[(z-v[3])*4+3], cast(int)(f*fintens/((z-ipz)*(z-ipz)+sq)));
+							}
+						}
+					}
+					normflash_exwhile1:
+					while(i > 0)
+					{
+						i -= 2; if(tbuf2[i] < -y) break;
+						if (!docube(x,tbuf2[i],y)) continue;
+						estnorm(xx, yy, tbuf2[i]+ipz, &fp); if (j) fp.y = -fp.y;
+						f = fp.x*x + fp.y*y + fp.z*tbuf2[i];
+						if (*cast(int *)&f > 0) addusb(&(cast(ubyte*)tbuf2[i+1])[3], cast(int)(f*fintens/(tbuf2[i]*tbuf2[i]+sq)));
+					}
+				}
+
+		}
+	}
+
+	// Do up&down faces of the cube
+	for(j=1; j>=0; j--)
+	{
+		clearbuf(cast(void*)bbuf, GSIZ*(GSIZ>>5), 0xffffffff);
+		for(y=1;y<flashradius;y++)
+		{
+			if(j) xx = ipx-y; else xx = ipx+y;
+			for(xi=1, xe=y+1; xi>=-1; xi-=2, xe=-xe)
+				for(x=(xi>>1);x!=xe;x+=xi)
+				{
+					yy = ipy+x;
+					if (cast(uint)(xx|yy) >= VSID) continue;
+					v = sptr[yy*VSID+xx]; i = 0; sq = x*x+y*y; m = x+xi-xe;
+					while(true)
+					{
+						for(z=v[1];z<=v[2];z++)
+						{
+							if(z-ipz < 0) { tbuf2[i] = z-ipz; tbuf2[i+1] = cast(int)&v[(z-v[1])*4+4]; i += 2; }
+							else
+							{
+								//if (z-ipz < -y) continue; //TEMP HACK!!!
+								if (z-ipz > y) goto normflash_exwhile2;
+								if ((!docube(x,z-ipz,y)) || (!m)) continue;
+								estnorm(xx,yy,z,&fp); if(j) fp.x = -fp.x;
+								f = fp.x*y + fp.y*x +fp.z*(z-ipz);
+								if (*cast(int *)&f > 0) addusb(&v[(z-v[1])*4+7],cast(int)(f*fintens/((z-ipz)*(z-ipz)+sq)));
+							}
+						}
+						if (!v[0]) break;
+						ceilnum = v[2]-v[1]-v[0]+2; v += v[0]*4;
+						for(z=v[3]+ceilnum;z<v[3];z++)
+						{
+							if (z < ipz) { tbuf2[i] = z-ipz; tbuf2[i+1] = cast(int)&v[(z-v[3])*4]; i += 2;}
+							else
+							{
+								//if (z-ipz < -y) continue; //TEMP HACK!!!
+								if (z-ipz > y) goto normflash_exwhile2;
+								if ((!docube(x,z-ipz,y)) || (!m)) continue;
+								estnorm(xx,yy,z,&fp); if(j) fp.x = -fp.x;
+								f = fp.x*y + fp.y*x + fp.z*(z-ipz);
+								if (*cast(int*)&f > 0) addusb(&v[(z-v[3])*4+3], cast(int)(f*fintens/((z-ipz)*(z-ipz)+sq)));
+							}
+						}
+					}
+					normflash_exwhile2:
+					while(i>0)
+					{
+						i -= 2; if(tbuf2[i] < -y) break;
+						if ((!docube(x,tbuf2[i],y)) || (!m)) continue;
+						estnorm(xx,yy,tbuf2[i]+ipz,&fp); if (j) fp.x = -fp.x;
+						f = fp.x*y + fp.y*x + fp.z*tbuf2[i];
+						if (*cast(int *)&f > 0) addusb(&(cast(ubyte *)tbuf2[i+1])[3],cast(int)(f*fintens/(tbuf2[i]*tbuf2[i]+sq)));
+					}
+				}
+		}
+
+		//Do the bottom face of the cube
+		clearbuf(cast(void *)bbuf, GSIZ*(GSIZ>>5), 0xffffffff);
+		for(yi=1,ye=flashradius+1;yi>=-1;yi-=2,ye=-ye)
+			for(y=(yi>>1);y!=ye;y+=yi)
+				for(xi=1,xe=flashradius+1;xi>=-1;xi-=2,xe=-xe)
+					for(x=(xi>>1);x!=xe;x+=xi)
+					{
+						xx = ipx+x; yy = ipy+y;						
+						if (cast(uint)(xx|yy) >= VSID) goto normflash_exwhile3;
+						k = max(labs(x),labs(y));
+
+						v = sptr[yy*VSID+xx]; sq = x*x+y*y;
+						while(true)
+						{
+							for(z=v[1];z<=v[2];z++)
+							{
+								if (z-ipz < k) continue;
+								if (z-ipz >= flashradius) goto normflash_exwhile3;
+								if ((!docube(x,y,z-ipz)) || (z-ipz == k)) continue;
+								estnorm(xx,yy,z,&fp);
+								f = fp.x*x + fp.y*y + fp.z*(z-ipz);
+								if (*cast(int *)&f > 0) addusb(&v[(z-v[1])*4+7],cast(int)(f*fintens/((z-ipz)*(z-ipz)+sq)));
+							}
+							if (!v[0]) break;
+							ceilnum = v[2]-v[1]-v[0]+2; v += v[0]*4;
+							for(z=v[3]+ceilnum;z<v[3];z++)
+							{
+								if (z-ipz < k) continue;
+								if (z-ipz >= flashradius) goto normflash_exwhile3;
+								if ((!docube(x,y,z-ipz)) || (z-ipz <= k)) continue;
+								estnorm(xx,yy,z,&fp);
+								f = fp.x*x + fp.y*y + fp.z*(z-ipz);
+								if (*cast(int *)&f > 0) addusb(&v[(z-v[3])*4+3],cast(int)(f*fintens/((z-ipz)*(z-ipz)+sq)));
+							}
+						}
+						normflash_exwhile3:;
+					}
+
+			//Do the top face of the cube
+	clearbuf(cast(void *)bbuf,GSIZ*(GSIZ>>5),0xffffffff);
+	for(yi=1,ye=flashradius+1;yi>=-1;yi-=2,ye=-ye)
+		for(y=(yi>>1);y!=ye;y+=yi)
+			for(xi=1,xe=flashradius+1;xi>=-1;xi-=2,xe=-xe)
+				for(x=(xi>>1);x!=xe;x+=xi)
+				{
+					xx = ipx+x; yy = ipy+y;
+					if (cast(uint)(xx|yy) >= VSID) goto normflash_exwhile4;
+					k = max(labs(x),labs(y)); m = ((x+xi != xe) && (y+yi != ye));
+
+					v = sptr[yy*VSID+xx]; i = 0; sq = x*x+y*y;
+					while (1)
+					{
+						for(z=v[1];z<=v[2];z++)
+						{
+							if (ipz-z >= flashradius) continue;
+							if (ipz-z < k) goto normflash_exwhile4;
+							tbuf2[i] = ipz-z; tbuf2[i+1] = cast(int)&v[(z-v[1])*4+4]; i += 2;
+						}
+						if (!v[0]) break;
+						ceilnum = v[2]-v[1]-v[0]+2; v += v[0]*4;
+						for(z=v[3]+ceilnum;z<v[3];z++)
+						{
+							if (ipz-z >= flashradius) continue;
+							if (ipz-z < k) goto normflash_exwhile4;
+							tbuf2[i] = ipz-z; tbuf2[i+1] = cast(int)&v[(z-v[3])*4]; i += 2;
+						}
+					}
+					normflash_exwhile4:
+					while (i > 0)
+					{
+						i -= 2;
+						if ((!docube(x,y,tbuf2[i])) || (tbuf2[i] <= k)) continue;
+						estnorm(xx,yy,ipz-tbuf2[i],&fp);
+						f = fp.x*x + fp.y*y - fp.z*tbuf2[i];
+						if (*cast(int *)&f > 0) addusb(&(cast(ubyte *)tbuf2[i+1])[3],cast(int)(f*fintens/(tbuf2[i]*tbuf2[i]+sq)));
+					}
+				}
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,0);
+	}
+}
+
+void hline (float x0, float y0, float x1, float y1, int *ix0, int *ix1)
+{
+	float dyx;
+
+	dyx = (y1-y0) * grd; //grd = 1/(x1-x0)
+
+		  if (y0 < wy0) ftol((wy0-y0)/dyx+x0,ix0);
+	else if (y0 > wy1) ftol((wy1-y0)/dyx+x0,ix0);
+	else ftol(x0,ix0);
+		  if (y1 < wy0) ftol((wy0-y0)/dyx+x0,ix1);
+	else if (y1 > wy1) ftol((wy1-y0)/dyx+x0,ix1);
+	else ftol(x1,ix1);
+	if ((*ix0) < iwx0) (*ix0) = iwx0;
+	if ((*ix0) > iwx1) (*ix0) = iwx1; //(*ix1) = min(max(*ix1,wx0),wx1);
+	gline(labs((*ix1)-(*ix0)),cast(float)(*ix0),((*ix0)-x1)*dyx + y1,
+									  cast(float)(*ix1),((*ix1)-x1)*dyx + y1);
+}
+
+void vline (float x0, float y0, float x1, float y1, int *iy0, int *iy1)
+{
+	float dxy;
+
+	dxy = (x1-x0) * grd; //grd = 1/(y1-y0)
+
+		  if (x0 < wx0) ftol((wx0-x0)/dxy+y0,iy0);
+	else if (x0 > wx1) ftol((wx1-x0)/dxy+y0,iy0);
+	else ftol(y0,iy0);
+		  if (x1 < wx0) ftol((wx0-x0)/dxy+y0,iy1);
+	else if (x1 > wx1) ftol((wx1-x0)/dxy+y0,iy1);
+	else ftol(y1,iy1);
+	if ((*iy0) < iwy0) (*iy0) = iwy0;
+	if ((*iy0) > iwy1) (*iy0) = iwy1;
+	gline(labs((*iy1)-(*iy0)),((*iy0)-y1)*dxy + x1,cast(float)(*iy0),
+									  ((*iy1)-y1)*dxy + x1,cast(float)(*iy1));
+}
+
+static float optistrx, optistry, optiheix, optiheiy, optiaddx, optiaddy;
+
+static long foglut[2048];
+static long fogcol;
+static long ofogdist = -1;
+
+//#ifdef _MSC_VER
+
+extern(C) {
+	extern void *opti4asm;
+	enum opti4 = (cast(point4d *)&opti4asm);
+
+}
+
+alias void function(int, int, int, int, int, int) hrend;
+alias void function(int, int, int, int, int) vrend;
+
+static if(USEZBUFFER != 1)
+{
+	void hrendnoz(int sx, int sy, int p1, int plc, int incr, int j)
+	{
+		sy = ylookup[sy] + frameplace; p1 = sy+(p1<<2); sy += (sx<<2);
+		do
+		{
+			*cast(int *)sy = angstart[plc>>16][j].col;
+			plc += incr; sy += 4;
+		} while (sy != p1);		
+	}
+
+	void vrendnoz (int sx, int sy, int p1, int iplc, int iinc)
+	{
+		sy = ylookup[sy]+(sx<<2)+frameplace;
+		for(;sx<p1;sx++)
+		{
+			*cast(int *)sy = angstart[uurend[sx]>>16][iplc].col;
+			uurend[sx] += uurend[sx+MAXXDIM]; sy += 4; iplc += iinc;
+		}
+	}	
+} else
+{
+	static if(false)
+	{
+			//Example C code
+		void hrendz (int sx, int sy, int p1, int plc, int incr, int j)
+		{
+			int p0, i; float dirx, diry;
+			p0 = ylookup[sy]+(sx<<2)+frameplace;
+			p1 = ylookup[sy]+(p1<<2)+frameplace;
+			dirx = optistrx*cast(float)sx + optiheix*cast(float)sy + optiaddx;
+			diry = optistry*cast(float)sx + optiheiy*cast(float)sy + optiaddy;
+			i = zbufoff;
+			do
+			{
+				*cast(int *)p0 = angstart[plc>>16][j].col;
+				*cast(float *)(p0+i) = cast(float)angstart[plc>>16][j].dist/sqrt(dirx*dirx+diry*diry);
+				dirx += optistrx; diry += optistry; plc += incr; p0 += 4;
+			} while (p0 != p1);
+		}
+
+			//Example C code
+		void vrendz (int sx, int sy, int p1, int iplc, int iinc)
+		{
+			float dirx, diry; int i, p0;
+			p0 = ylookup[sy]+(sx<<2)+frameplace;
+			p1 = ylookup[sy]+(p1<<2)+frameplace;
+			dirx = optistrx*cast(float)sx + optiheix*cast(float)sy + optiaddx;
+			diry = optistry*cast(float)sx + optiheiy*cast(float)sy + optiaddy;
+			i = zbufoff;
+			while (p0 < p1)
+			{
+				*cast(int *)p0 = angstart[uurend[sx]>>16][iplc].col;
+				*cast(float *)(p0+i) = cast(float)angstart[uurend[sx]>>16][iplc].dist/sqrt(dirx*dirx+diry*diry);
+				dirx += optistrx; diry += optistry; uurend[sx] += uurend[sx+MAXXDIM]; p0 += 4; iplc += iinc; sx++;
+			}
+		}
+
+			//Example C code
+		void hrendzfog (int sx, int sy, int p1, int plc, int incr, int j)
+		{
+			int p0, i, k, l; float dirx, diry;
+			p0 = ylookup[sy]+(sx<<2)+frameplace;
+			p1 = ylookup[sy]+(p1<<2)+frameplace;
+			dirx = optistrx*cast(float)sx + optiheix*cast(float)sy + optiaddx;
+			diry = optistry*cast(float)sx + optiheiy*cast(float)sy + optiaddy;
+			i = zbufoff;
+			do
+			{
+				k = angstart[plc>>16][j].col;
+				l = angstart[plc>>16][j].dist;
+				l = (foglut[l>>20]&32767);
+				*cast(int *)p0 = ((((( vx5.fogcol     &255)-( k     &255))*l)>>15)    ) +
+								  ((((((vx5.fogcol>> 8)&255)-((k>> 8)&255))*l)>>15)<< 8) +
+								  ((((((vx5.fogcol>>16)&255)-((k>>16)&255))*l)>>15)<<16)+k;
+				*cast(float *)(p0+i) = cast(float)angstart[plc>>16][j].dist/sqrt(dirx*dirx+diry*diry);
+				dirx += optistrx; diry += optistry; plc += incr; p0 += 4;
+			} while (p0 != p1);
+		}
+
+			//Example C code
+		void vrendzfog (int sx, int sy, int p1, int iplc, int iinc)
+		{
+			float dirx, diry; int i, k, l, p0;
+			p0 = ylookup[sy]+(sx<<2)+frameplace;
+			p1 = ylookup[sy]+(p1<<2)+frameplace;
+			dirx = optistrx*cast(float)sx + optiheix*cast(float)sy + optiaddx;
+			diry = optistry*cast(float)sx + optiheiy*cast(float)sy + optiaddy;
+			i = zbufoff;
+			while (p0 < p1)
+			{
+				k = angstart[uurend[sx]>>16][iplc].col;
+				l = angstart[uurend[sx]>>16][iplc].dist;
+				l = (foglut[l>>20]&32767);
+				*cast(int *)p0 = ((((( vx5.fogcol     &255)-( k     &255))*l)>>15)    ) +
+								  ((((((vx5.fogcol>> 8)&255)-((k>> 8)&255))*l)>>15)<< 8) +
+								  ((((((vx5.fogcol>>16)&255)-((k>>16)&255))*l)>>15)<<16)+k;
+				*cast(float *)(p0+i) = cast(float)angstart[uurend[sx]>>16][iplc].dist/sqrt(dirx*dirx+diry*diry);
+				dirx += optistrx; diry += optistry; uurend[sx] += uurend[sx+MAXXDIM]; p0 += 4; iplc += iinc; sx++;
+			}
+		}
+
+	}
+}
+
+void hrendzsse (int sx, int sy, int p1, int plc, int incr, int j)
+{
+	asm
+	{
+		push ESI;
+		push EDI;
+beghasm_p3:
+		mov EAX, sx;
+		mov ECX, sy;
+		mov ESI, p1;
+		mov EDX, ylookup[ECX*4];
+		add EDX, frameplace;
+		lea EDI, [EDX+EAX*4];
+		lea ESI, [EDX+ESI*4];
+
+		and EAX, 0xfffffffc;
+		cvtsi2ss XMM0, EAX;
+		cvtsi2ss XMM4, ECX;
+		movss XMM1, XMM0;
+		movss XMM5, XMM4;
+		mulss XMM0, optistrx;
+		mulss XMM1, optistry;
+		mulss XMM4, optiheix;
+		mulss XMM5, optiheiy;
+		addss XMM0, optiaddx;
+		addss XMM1, optiaddy;
+		addss XMM0, XMM4;
+		addss XMM1, XMM5;
+
+		mov ECX, zbufoff;
+		mov EDX, j;
+		movd MM6, plc;
+		movd MM7, incr;
+
+		shufps XMM0, XMM0, 0;
+		shufps XMM1, XMM1, 0;
+		movaps XMM2, opti4asm[2*16];
+		movaps XMM3, opti4asm[3*16];
+		addps XMM0, opti4asm[0*16];
+		addps XMM1, opti4asm[1*16];
+			//XMM0 =  XMM0      ^2 +  XMM1      ^2        (p)
+			//XMM2 = (XMM0+XMM2)^2 + (XMM1+XMM3)^2 - XMM0 (v)
+			//XMM1 = ...                                  (a)
+		addps XMM2, XMM0;  //This block converts inner loop...
+		addps XMM3, XMM1;  //from: 1 / sqrt(x*x + y*y), x += xi, y += yi;
+		mulps XMM0, XMM0;  //  to: 1 / sqrt(p), p += v, v += a;
+		mulps XMM1, XMM1;
+		mulps XMM2, XMM2;
+		mulps XMM3, XMM3;
+		addps XMM0, XMM1;
+		movaps XMM1, opti4asm[4*16];
+		addps XMM2, XMM3;
+		subps XMM2, XMM0;
+
+			//Do first 0-3 pixels to align unrolled loop of 4
+		test EDI, 15;
+		jz short skip1ha;
+
+		test EDI, 8;
+		jz short skipshufa;
+		shufps XMM0, XMM0, 0x4e; //rotate right by 2
+skipshufa:
+		test EDI, 4;
+		jz short skipshufb;
+		shufps XMM0, XMM0, 0x39; //rotate right by 1
+skipshufb:
+
+beg1ha:
+		pextrw EAX, MM6, 1;
+		paddd MM6, MM7;
+		mov EAX, angstart[EAX*4];
+		movd MM0, [EAX+EDX*8];
+		movd [EDI], MM0;
+		cvtsi2ss XMM7, [EAX+EDX*8+4];
+		rsqrtss XMM3, XMM0;
+		mulss XMM7, XMM3;
+		shufps XMM0, XMM0, 0x39; //rotate right by 1
+		movss [EDI+ECX], XMM7;
+		add EDI, 4;
+		cmp EDI, ESI;
+		jz short endh;
+		test EDI, 15;
+		jnz short beg1ha;
+
+		addps XMM0, XMM2;
+		addps XMM2, XMM1;
+skip1ha:
+		lea EAX, [EDI+16];      //these 3 lines re-ordered
+		cmp EAX, ESI;
+		ja short skip4h;
+
+		movq MM0, MM6;          //mm0: 0,plc
+		paddd MM0, MM7;         //mm0: 0,plc+inc
+		punpckldq MM7, MM7;     //mm7: inc,inc
+		punpckldq MM6, MM0;     //MM6: plc+inc,plc
+		paddd MM7, MM7;         //mm7: inc+inc,inc+inc
+
+		sub ESI, 16;
+
+		 //eax: temp   ³ mm0:  z0 argb0   argb1 argb0 ³ XMM0: plc3 plc2 plc1 plc0
+		 //ebx:  -     ³ mm1:  z1 argb1               ³ XMM1: acc3 acc2 acc1 acc0
+		 //ECX:zbufoff ³ mm2:  z2 argb2   argb3 argb2 ³ xmm2: inc3 inc2 inc1 inc0
+		 //EDX:  j     ³ mm3:  z3 argb3               ³ xmm3:  r3   r2   r1   r0
+		 //esi:  -     ³ mm4:              z1    z0   ³ XMM4:            z3   z2
+		 //edi:scroff  ³ mm5:              z3    z2   ³ XMM5:
+		 //ebp:  -     ³ MM6: plc1 plc0               ³ XMM6:
+beg4h:   //esp:  -     ³ mm7: inc1 inc0               ³ xmm7:  z3   z2   z1   z0
+		pextrw EAX, MM6, 1;
+		mov EAX, angstart[EAX*4];
+		movq MM0, [EAX+EDX*8];
+		pextrw EAX, MM6, 3;
+		mov EAX, angstart[EAX*4];
+		movq MM1, [EAX+EDX*8];
+		paddd MM6, MM7;
+		pextrw EAX, MM6, 1;
+		mov EAX, angstart[EAX*4];
+		movq MM2, [EAX+EDX*8];
+		pextrw EAX, MM6, 3;
+		mov EAX, angstart[EAX*4];
+		movq MM3, [EAX+EDX*8];
+		paddd MM6, MM7;
+
+		movq MM4, MM0;
+		movq MM5, MM2;
+		punpckldq MM0, MM1;
+		punpckldq MM2, MM3;
+		movntq [EDI], MM0;
+		movntq [EDI+8], MM2;
+
+		punpckhdq MM4, MM1;
+		punpckhdq MM5, MM3;
+		cvtpi2ps XMM7, MM4;
+		cvtpi2ps XMM4, MM5;
+		rsqrtps XMM3, XMM0;
+		movlhps XMM7, XMM4;
+		mulps XMM7, XMM3;
+		movntps [EDI+ECX], XMM7;
+		addps XMM0, XMM2;
+		addps XMM2, XMM1;
+
+		add EDI, 16;
+		cmp EDI, ESI;
+		jbe short beg4h;
+		add ESI, 16;
+		cmp EDI, ESI;
+		jae endh;
+
+		psrad MM7, 1;    //Restore mm7 from incr*2 to just incr for single loop
+skip4h:
+beg1h:
+		pextrw EAX, MM6, 1;
+		paddd MM6, MM7;
+		mov EAX, angstart[EAX*4];
+		movd MM0, [EAX+EDX*8];
+		movd [EDI], MM0;
+		cvtsi2ss XMM7, [EAX+EDX*8+4];
+		rsqrtss XMM3, XMM0;
+		mulss XMM7, XMM3;
+		shufps XMM0, XMM0, 0x39; //rotate right by 1
+		movss [EDI+ECX], XMM7;
+		add EDI, 4;
+		cmp EDI, ESI;
+		jb short beg1h;
+endh: 
+		pop EDI;
+		pop ESI;
+	}
+}
+
+// line 2315 hrendzfogsse
