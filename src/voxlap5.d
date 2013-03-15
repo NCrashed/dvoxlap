@@ -486,7 +486,7 @@ int ylookup[MAXYDIM+1];
 static lpoint3d glipos;
 static point3d gipos, gistr, gihei, gifor;
 static point3d gixs, giys, gizs, giadd;
-static float gihx, gihy, gihzz, grd;
+static float gihx, gihy, gihz, grd;
 static float[2] gposxfrac, gposyfrac;
 static int gposz, giforzsgn, gstartz0, gstartz1;
 static int[2] gixyi;
@@ -549,7 +549,7 @@ static if(USEZBUFFER == 1)
 static castdat*[MAXXDIM*4]  angstart;
 static castdat*				gscanptr;
 
-static size_t max(size_t a, size_t b)
+static T max(T)(T a, T b)
 {
 	return a >= b ? a : b; 
 }
@@ -1030,7 +1030,7 @@ int colorjit(int i, int jitamount)
 	return((gkrand&jitamount)^i);
 }
 
-static int min(int a, int b)
+static T min(T)(T a, T b)
 {
 	return a >= b ? b : a;
 }
@@ -2467,7 +2467,7 @@ void vline (float x0, float y0, float x1, float y1, int *iy0, int *iy1)
 									  ((*iy1)-y1)*dxy + x1,cast(float)(*iy1));
 }
 
-static float optistrx, optistry, optiheix, optiheiy, optiaddx, optiaddy;
+static double optistrx, optistry, optiheix, optiheiy, optiaddx, optiaddy;
 
 static long foglut[2048];
 static long fogcol;
@@ -2481,8 +2481,10 @@ extern(C) {
 
 }
 
-alias void function(int, int, int, int, int, int) hrend;
-alias void function(int, int, int, int, int) vrend;
+alias void function(long, long, int, int, int, int) da_hrend;
+alias void function(long, long, int, int, int) da_vrend;
+__gshared da_hrend hrend;
+__gshared da_vrend vrend;
 
 static if(USEZBUFFER != 1)
 {
@@ -2588,175 +2590,1553 @@ static if(USEZBUFFER != 1)
 		}
 
 	}
-}
 
-void hrendzsse (int sx, int sy, int p1, int plc, int incr, int j)
-{
-	asm
+
+	void hrendzsse (long sx, long sy, int p1, int plc, int incr, int j)
 	{
-		push ESI;
-		push EDI;
-beghasm_p3:
-		mov EAX, sx;
-		mov ECX, sy;
-		mov ESI, p1;
-		mov EDX, ylookup[ECX*4];
-		add EDX, frameplace;
-		lea EDI, [EDX+EAX*4];
-		lea ESI, [EDX+ESI*4];
+		asm
+		{
+			push ESI;
+			push EDI;
+	beghasm_p3:
+			mov EAX, sx;
+			mov ECX, sy;
+			mov ESI, p1;
+			mov EDX, ylookup[ECX*4];
+			add EDX, frameplace;
+			lea EDI, [EDX+EAX*4];
+			lea ESI, [EDX+ESI*4];
 
-		and EAX, 0xfffffffc;
-		cvtsi2ss XMM0, EAX;
-		cvtsi2ss XMM4, ECX;
-		movss XMM1, XMM0;
-		movss XMM5, XMM4;
-		mulss XMM0, optistrx;
-		mulss XMM1, optistry;
-		mulss XMM4, optiheix;
-		mulss XMM5, optiheiy;
-		addss XMM0, optiaddx;
-		addss XMM1, optiaddy;
-		addss XMM0, XMM4;
-		addss XMM1, XMM5;
+			and EAX, 0xfffffffc;
+			cvtsi2ss XMM0, EAX;
+			cvtsi2ss XMM4, ECX;
+			movss XMM1, XMM0;
+			movss XMM5, XMM4;
+			mulss XMM0, optistrx;
+			mulss XMM1, optistry;
+			mulss XMM4, optiheix;
+			mulss XMM5, optiheiy;
+			addss XMM0, optiaddx;
+			addss XMM1, optiaddy;
+			addss XMM0, XMM4;
+			addss XMM1, XMM5;
 
-		mov ECX, zbufoff;
-		mov EDX, j;
-		movd MM6, plc;
-		movd MM7, incr;
+			mov ECX, zbufoff;
+			mov EDX, j;
+			movd MM6, plc;
+			movd MM7, incr;
 
-		shufps XMM0, XMM0, 0;
-		shufps XMM1, XMM1, 0;
-		movaps XMM2, opti4asm[2*16];
-		movaps XMM3, opti4asm[3*16];
-		addps XMM0, opti4asm[0*16];
-		addps XMM1, opti4asm[1*16];
-			//XMM0 =  XMM0      ^2 +  XMM1      ^2        (p)
-			//XMM2 = (XMM0+XMM2)^2 + (XMM1+XMM3)^2 - XMM0 (v)
-			//XMM1 = ...                                  (a)
-		addps XMM2, XMM0;  //This block converts inner loop...
-		addps XMM3, XMM1;  //from: 1 / sqrt(x*x + y*y), x += xi, y += yi;
-		mulps XMM0, XMM0;  //  to: 1 / sqrt(p), p += v, v += a;
-		mulps XMM1, XMM1;
-		mulps XMM2, XMM2;
-		mulps XMM3, XMM3;
-		addps XMM0, XMM1;
-		movaps XMM1, opti4asm[4*16];
-		addps XMM2, XMM3;
-		subps XMM2, XMM0;
+			shufps XMM0, XMM0, 0;
+			shufps XMM1, XMM1, 0;
+			movaps XMM2, opti4asm[2*16];
+			movaps XMM3, opti4asm[3*16];
+			addps XMM0, opti4asm[0*16];
+			addps XMM1, opti4asm[1*16];
+				//XMM0 =  XMM0      ^2 +  XMM1      ^2        (p)
+				//XMM2 = (XMM0+XMM2)^2 + (XMM1+XMM3)^2 - XMM0 (v)
+				//XMM1 = ...                                  (a)
+			addps XMM2, XMM0;  //This block converts inner loop...
+			addps XMM3, XMM1;  //from: 1 / sqrt(x*x + y*y), x += xi, y += yi;
+			mulps XMM0, XMM0;  //  to: 1 / sqrt(p), p += v, v += a;
+			mulps XMM1, XMM1;
+			mulps XMM2, XMM2;
+			mulps XMM3, XMM3;
+			addps XMM0, XMM1;
+			movaps XMM1, opti4asm[4*16];
+			addps XMM2, XMM3;
+			subps XMM2, XMM0;
 
-			//Do first 0-3 pixels to align unrolled loop of 4
-		test EDI, 15;
-		jz short skip1ha;
+				//Do first 0-3 pixels to align unrolled loop of 4
+			test EDI, 15;
+			jz short skip1ha;
 
-		test EDI, 8;
-		jz short skipshufa;
-		shufps XMM0, XMM0, 0x4e; //rotate right by 2
-skipshufa:
-		test EDI, 4;
-		jz short skipshufb;
-		shufps XMM0, XMM0, 0x39; //rotate right by 1
-skipshufb:
+			test EDI, 8;
+			jz short skipshufa;
+			shufps XMM0, XMM0, 0x4e; //rotate right by 2
+	skipshufa:
+			test EDI, 4;
+			jz short skipshufb;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+	skipshufb:
 
-beg1ha:
-		pextrw EAX, MM6, 1;
-		paddd MM6, MM7;
-		mov EAX, angstart[EAX*4];
-		movd MM0, [EAX+EDX*8];
-		movd [EDI], MM0;
-		cvtsi2ss XMM7, [EAX+EDX*8+4];
-		rsqrtss XMM3, XMM0;
-		mulss XMM7, XMM3;
-		shufps XMM0, XMM0, 0x39; //rotate right by 1
-		movss [EDI+ECX], XMM7;
-		add EDI, 4;
-		cmp EDI, ESI;
-		jz short endh;
-		test EDI, 15;
-		jnz short beg1ha;
+	beg1ha:
+			pextrw EAX, MM6, 1;
+			paddd MM6, MM7;
+			mov EAX, angstart[EAX*4];
+			movd MM0, [EAX+EDX*8];
+			movd [EDI], MM0;
+			cvtsi2ss XMM7, [EAX+EDX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+			add EDI, 4;
+			cmp EDI, ESI;
+			jz short endh;
+			test EDI, 15;
+			jnz short beg1ha;
 
-		addps XMM0, XMM2;
-		addps XMM2, XMM1;
-skip1ha:
-		lea EAX, [EDI+16];      //these 3 lines re-ordered
-		cmp EAX, ESI;
-		ja short skip4h;
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+	skip1ha:
+			lea EAX, [EDI+16];      //these 3 lines re-ordered
+			cmp EAX, ESI;
+			ja short skip4h;
 
-		movq MM0, MM6;          //mm0: 0,plc
-		paddd MM0, MM7;         //mm0: 0,plc+inc
-		punpckldq MM7, MM7;     //mm7: inc,inc
-		punpckldq MM6, MM0;     //MM6: plc+inc,plc
-		paddd MM7, MM7;         //mm7: inc+inc,inc+inc
+			movq MM0, MM6;          //mm0: 0,plc
+			paddd MM0, MM7;         //mm0: 0,plc+inc
+			punpckldq MM7, MM7;     //mm7: inc,inc
+			punpckldq MM6, MM0;     //MM6: plc+inc,plc
+			paddd MM7, MM7;         //mm7: inc+inc,inc+inc
 
-		sub ESI, 16;
+			sub ESI, 16;
 
-		 //eax: temp   ³ mm0:  z0 argb0   argb1 argb0 ³ XMM0: plc3 plc2 plc1 plc0
-		 //ebx:  -     ³ mm1:  z1 argb1               ³ XMM1: acc3 acc2 acc1 acc0
-		 //ECX:zbufoff ³ mm2:  z2 argb2   argb3 argb2 ³ xmm2: inc3 inc2 inc1 inc0
-		 //EDX:  j     ³ mm3:  z3 argb3               ³ xmm3:  r3   r2   r1   r0
-		 //esi:  -     ³ mm4:              z1    z0   ³ XMM4:            z3   z2
-		 //edi:scroff  ³ mm5:              z3    z2   ³ XMM5:
-		 //ebp:  -     ³ MM6: plc1 plc0               ³ XMM6:
-beg4h:   //esp:  -     ³ mm7: inc1 inc0               ³ xmm7:  z3   z2   z1   z0
-		pextrw EAX, MM6, 1;
-		mov EAX, angstart[EAX*4];
-		movq MM0, [EAX+EDX*8];
-		pextrw EAX, MM6, 3;
-		mov EAX, angstart[EAX*4];
-		movq MM1, [EAX+EDX*8];
-		paddd MM6, MM7;
-		pextrw EAX, MM6, 1;
-		mov EAX, angstart[EAX*4];
-		movq MM2, [EAX+EDX*8];
-		pextrw EAX, MM6, 3;
-		mov EAX, angstart[EAX*4];
-		movq MM3, [EAX+EDX*8];
-		paddd MM6, MM7;
+			 //eax: temp   ³ mm0:  z0 argb0   argb1 argb0 ³ XMM0: plc3 plc2 plc1 plc0
+			 //ebx:  -     ³ mm1:  z1 argb1               ³ XMM1: acc3 acc2 acc1 acc0
+			 //ECX:zbufoff ³ mm2:  z2 argb2   argb3 argb2 ³ xmm2: inc3 inc2 inc1 inc0
+			 //EDX:  j     ³ mm3:  z3 argb3               ³ xmm3:  r3   r2   r1   r0
+			 //esi:  -     ³ mm4:              z1    z0   ³ XMM4:            z3   z2
+			 //edi:scroff  ³ mm5:              z3    z2   ³ XMM5:
+			 //ebp:  -     ³ MM6: plc1 plc0               ³ XMM6:
+	beg4h:   //esp:  -     ³ mm7: inc1 inc0               ³ xmm7:  z3   z2   z1   z0
+			pextrw EAX, MM6, 1;
+			mov EAX, angstart[EAX*4];
+			movq MM0, [EAX+EDX*8];
+			pextrw EAX, MM6, 3;
+			mov EAX, angstart[EAX*4];
+			movq MM1, [EAX+EDX*8];
+			paddd MM6, MM7;
+			pextrw EAX, MM6, 1;
+			mov EAX, angstart[EAX*4];
+			movq MM2, [EAX+EDX*8];
+			pextrw EAX, MM6, 3;
+			mov EAX, angstart[EAX*4];
+			movq MM3, [EAX+EDX*8];
+			paddd MM6, MM7;
 
-		movq MM4, MM0;
-		movq MM5, MM2;
-		punpckldq MM0, MM1;
-		punpckldq MM2, MM3;
-		movntq [EDI], MM0;
-		movntq [EDI+8], MM2;
+			movq MM4, MM0;
+			movq MM5, MM2;
+			punpckldq MM0, MM1;
+			punpckldq MM2, MM3;
+			movntq [EDI], MM0;
+			movntq [EDI+8], MM2;
 
-		punpckhdq MM4, MM1;
-		punpckhdq MM5, MM3;
-		cvtpi2ps XMM7, MM4;
-		cvtpi2ps XMM4, MM5;
-		rsqrtps XMM3, XMM0;
-		movlhps XMM7, XMM4;
-		mulps XMM7, XMM3;
-		movntps [EDI+ECX], XMM7;
-		addps XMM0, XMM2;
-		addps XMM2, XMM1;
+			punpckhdq MM4, MM1;
+			punpckhdq MM5, MM3;
+			cvtpi2ps XMM7, MM4;
+			cvtpi2ps XMM4, MM5;
+			rsqrtps XMM3, XMM0;
+			movlhps XMM7, XMM4;
+			mulps XMM7, XMM3;
+			movntps [EDI+ECX], XMM7;
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
 
-		add EDI, 16;
-		cmp EDI, ESI;
-		jbe short beg4h;
-		add ESI, 16;
-		cmp EDI, ESI;
-		jae endh;
+			add EDI, 16;
+			cmp EDI, ESI;
+			jbe short beg4h;
+			add ESI, 16;
+			cmp EDI, ESI;
+			jae endh;
 
-		psrad MM7, 1;    //Restore mm7 from incr*2 to just incr for single loop
-skip4h:
-beg1h:
-		pextrw EAX, MM6, 1;
-		paddd MM6, MM7;
-		mov EAX, angstart[EAX*4];
-		movd MM0, [EAX+EDX*8];
-		movd [EDI], MM0;
-		cvtsi2ss XMM7, [EAX+EDX*8+4];
-		rsqrtss XMM3, XMM0;
-		mulss XMM7, XMM3;
-		shufps XMM0, XMM0, 0x39; //rotate right by 1
-		movss [EDI+ECX], XMM7;
-		add EDI, 4;
-		cmp EDI, ESI;
-		jb short beg1h;
-endh: 
-		pop EDI;
-		pop ESI;
+			psrad MM7, 1;    //Restore mm7 from incr*2 to just incr for single loop
+	skip4h:
+	beg1h:
+			pextrw EAX, MM6, 1;
+			paddd MM6, MM7;
+			mov EAX, angstart[EAX*4];
+			movd MM0, [EAX+EDX*8];
+			movd [EDI], MM0;
+			cvtsi2ss XMM7, [EAX+EDX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+			add EDI, 4;
+			cmp EDI, ESI;
+			jb short beg1h;
+	endh: 
+			pop EDI;
+			pop ESI;
+		}
+	}
+
+	void hrendzfogsse (long sx, long sy, int p1, int plc, int incr, int j)
+	{
+		static long mm7bak;
+		asm
+		{
+			push ESI;
+			push EDI;
+	beghasm_p3:
+			mov EAX, sx;
+			mov ECX, sy;
+			mov ESI, p1;
+			mov EDX, ylookup[ECX*4];
+			add EDX, frameplace;
+			lea EDI, [EDX+EAX*4];
+			lea ESI, [EDX+ESI*4];
+
+			and EAX, 0xfffffffc;
+			cvtsi2ss XMM0, EAX;
+			cvtsi2ss XMM4, ECX;
+			movss XMM1, XMM0;
+			movss XMM5, XMM4;
+			mulss XMM0, optistrx;
+			mulss XMM1, optistry;
+			mulss XMM4, optiheix;
+			mulss XMM5, optiheiy;
+			addss XMM0, optiaddx;
+			addss XMM1, optiaddy;
+			addss XMM0, XMM4;
+			addss XMM1, XMM5;
+
+			mov ECX, zbufoff;
+			mov EDX, j;
+			movd MM6, plc;
+			movd MM7, incr;
+
+			shufps XMM0, XMM0, 0;
+			shufps XMM1, XMM1, 0;
+			movaps XMM2, opti4asm[2*16];
+			movaps XMM3, opti4asm[3*16];
+			addps XMM0, opti4asm[0*16];
+			addps XMM1, opti4asm[1*16];
+				//xmm0 =  xmm0      ^2 +  xmm1      ^2        (p)
+				//xmm2 = (xmm0+xmm2)^2 + (xmm1+xmm3)^2 - xmm0 (v)
+				//xmm1 = ...                                  (a)
+			addps XMM2, XMM0;  //This block converts inner loop...
+			addps XMM3, XMM1;  //from: 1 / sqrt(x*x + y*y), x += xi, y += yi;
+			mulps XMM0, XMM0;  //  to: 1 / sqrt(p), p += v, v += a;
+			mulps XMM1, XMM1;
+			mulps XMM2, XMM2;
+			mulps XMM3, XMM3;
+			addps XMM0, XMM1;
+			movaps XMM1, opti4asm[4*16];
+			addps XMM2, XMM3;
+			subps XMM2, XMM0;
+
+				//Do first 0-3 pixels to align unrolled loop of 4
+			test EDI, 15;
+			jz short skip1ha;
+
+			test EDI, 8;
+			jz short skipshufa;
+			shufps XMM0, XMM0, 0x4e; //rotate right by 2
+	skipshufa:
+			test EDI, 4;
+			jz short skipshufb;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+	skipshufb:
+
+	beg1ha:
+			pextrw EAX, MM6, 1;
+			paddd MM6, MM7;
+			mov EAX, angstart[EAX*4];
+
+				//Z
+			cvtsi2ss XMM7, [EAX+EDX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+
+				//Col
+			punpcklbw MM0, [EAX+EDX*8];
+			psrlw MM0, 8;
+			movq MM1, fogcol;
+			psubw MM1, MM0;
+			paddw MM1, MM1;
+			mov EAX, [EAX+EDX*8+4];
+			shr EAX, 16+4;
+			pmulhw MM1, foglut[EAX*8];
+			paddw MM0, MM1;
+			packuswb MM0, MM1;
+			movd [EDI], MM0;
+
+			add EDI, 4;
+			cmp EDI, ESI;
+			jz short endh;
+			test EDI, 15;
+			jnz short beg1ha;
+
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+	skip1ha:
+			lea EAX, [EDI+16];      //these 3 lines re-ordered
+			cmp EAX, ESI;
+			ja short skip4h;
+
+			movq MM0, MM6;          //mm0: 0,plc
+			paddd MM0, MM7;         //mm0: 0,plc+inc
+			punpckldq MM7, MM7;     //mm7: inc,inc
+			punpckldq MM6, MM0;     //mm6: plc+inc,plc
+			paddd MM7, MM7;         //mm7: inc+inc,inc+inc
+
+			sub ESI, 16;
+
+			 //eax: temp   ³ mm0:  z0 argb0   argb1 argb0 ³ xmm0: plc3 plc2 plc1 plc0
+			 //ebx:  -     ³ mm1:  z1 argb1               ³ xmm1: acc3 acc2 acc1 acc0
+			 //ecx:zbufoff ³ mm2:  z2 argb2   argb3 argb2 ³ xmm2: inc3 inc2 inc1 inc0
+			 //edx:  j     ³ mm3:  z3 argb3               ³ xmm3:  r3   r2   r1   r0
+			 //esi:  -     ³ mm4:              z1    z0   ³ xmm4:            z3   z2
+			 //edi:scroff  ³ mm5:              z3    z2   ³ xmm5:
+			 //ebp:  -     ³ mm6: plc1 plc0               ³ xmm6:
+			 //esp:  -     ³ mm7: inc1 inc0               ³ xmm7:  z3   z2   z1   z0
+
+			movq mm7bak, MM7;
+	beg4h:
+			pextrw EAX, MM6, 1;
+			mov EAX, angstart[EAX*4];
+			movq MM4, [EAX+EDX*8];
+			pextrw EAX, MM6, 3;
+			mov EAX, angstart[EAX*4];
+			movq MM1, [EAX+EDX*8];
+			paddd MM6, mm7bak;
+			pextrw EAX, MM6, 1;
+			mov EAX, angstart[EAX*4];
+			movq MM5, [EAX+EDX*8];
+			pextrw EAX, MM6, 3;
+			mov EAX, angstart[EAX*4];
+			movq MM3, [EAX+EDX*8];
+			paddd MM6, mm7bak;
+
+			movq MM0, MM4;
+			movq MM2, MM5;
+
+				//Do Z
+			punpckhdq MM4, MM1;
+			punpckhdq MM5, MM3;
+			cvtpi2ps XMM7, MM4;
+			cvtpi2ps XMM4, MM5;
+			rsqrtps XMM3, XMM0;
+			movlhps XMM7, XMM4;
+			mulps XMM7, XMM3;
+			movntps [EDI+ECX], XMM7;
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+
+				//Do colors
+				//mm4:dist1 dist0
+				//mm5:dist3 dist2
+			pxor MM7, MM7;
+			punpcklbw MM0, MM7;
+			punpcklbw MM1, MM7;
+			punpcklbw MM2, MM7;
+			punpcklbw MM3, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM0;
+			paddw MM7, MM7;
+			pextrw EAX, MM4, 1;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM0, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM1;
+			paddw MM7, MM7;
+			pextrw EAX, MM4, 3;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM1, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM2;
+			paddw MM7, MM7;
+			pextrw EAX, MM5, 1;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM2, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM3;
+			paddw MM7, MM7;
+			pextrw EAX, MM5, 3;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM3, MM7;
+
+			packuswb MM0, MM1;
+			packuswb MM2, MM3;
+			movntq [EDI], MM0;
+			movntq [EDI+8], MM2;
+
+			add EDI, 16;
+			cmp EDI, ESI;
+			jbe short beg4h;
+			add ESI, 16;
+			cmp EDI, ESI;
+			jae endh;
+
+			movq MM7, mm7bak;
+			psrad MM7, 1;    //Restore mm7 from incr*2 to just incr for single loop
+	skip4h:
+	beg1h:
+			pextrw EAX, MM6, 1;
+			paddd MM6, MM7;
+			mov EAX, angstart[EAX*4];
+
+				//Z
+			cvtsi2ss XMM7, [EAX+EDX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+
+				//Col
+			punpcklbw MM0, [EAX+EDX*8];
+			psrlw MM0, 8;
+			movq MM1, fogcol;
+			psubw MM1, MM0;
+			paddw MM1, MM1;
+			mov EAX, [EAX+EDX*8+4];
+			shr EAX, 16+4;
+			pmulhw MM1, foglut[EAX*8];
+			paddw MM0, MM1;
+			packuswb MM0, MM1;
+			movd [EDI], MM0;
+
+			add EDI, 4;
+			cmp EDI, ESI;
+			jb short beg1h;
+	endh: 
+			pop EDI;
+			pop ESI;
+		}
+	}
+
+	void hrendz3dn (long sx, long sy, int p1, int plc, int incr, int j)
+	{
+		asm
+		{
+			push ESI;
+			push EDI;
+			mov EAX, sy;
+			mov EAX, ylookup[EAX*4];
+			add EAX, frameplace;
+			mov ESI, p1;
+			lea ESI, [EAX+ESI*4];    //esi = p1
+			mov EDI, sx;
+			lea EDI, [EAX+EDI*4];    //edi = p0
+
+			movd MM0, sx;
+			punpckldq MM0, sy;
+			pi2fd MM0, MM0;          //mm0: (float)sy (float)sx
+			pshufw MM2, MM0, 0xee;   //mm2: (float)sy (float)sy
+			punpckldq MM0, MM0;      //mm0: (float)sx (float)sx
+			movd MM1, optistrx;
+			punpckldq MM1, optistry;
+			pfmul MM0, MM1;          //mm0: (float)sx*optistry (float)sx*optistrx
+			movd MM3, optiheix;
+			punpckldq MM3, optiheiy;
+			pfmul MM2, MM3;          //mm2: (float)sy*optiheiy (float)sy*optiheix
+			pfadd MM0, MM2;
+			movd MM3, optiaddx;
+			punpckldq MM3, optiaddy; //mm3: optiaddy optiaddx
+			pfadd MM0, MM3;          //mm0: diry diry
+
+			movd MM6, plc;
+			movd MM7, incr;
+			mov ECX, zbufoff;
+			mov EDX, j;
+
+	beg:  
+			pextrw EAX, MM6, 1;
+			mov EAX, angstart[EAX*4];
+			movq MM2, [EAX+EDX*8];   //mm2:      dist       col
+			pshufw MM3, MM2, 0xee;   //mm3:         ?      dist
+			pi2fd MM3, MM3;          //mm3:         ?   (f)dist
+			movq MM4, MM0;           //mm4:      diry      dirx
+			pfmul MM4, MM4;          //mm4:    diry^2    dirx^2
+			pfadd MM0, MM1;          //mm0: dirx+optx diry+opty (unrelated)
+			pfacc MM4, MM4;          //mm4: (x^2+y^2)   x^2+y^2
+			pfrsqrt MM4, MM4;        //mm4: 1/sqrt(*) 1/sqrt(*)
+			pfmul MM3, MM4;          //mm3:         0    zvalue
+			paddd MM6, MM7;          //mm6:            plc+incr (unrelated)
+			movd [EDI], MM2;
+			movd [EDI+ECX], MM3;
+			add EDI, 4;
+			cmp EDI, ESI;
+			jb short beg;
+			pop EDI;
+			pop ESI;
+		}
+	}
+
+	void hrendzfog3dn (long sx, long sy, int p1, int plc, int incr, int j)
+	{
+		asm
+		{
+			push ESI;
+			push EDI;
+			mov EAX, sy;
+			mov EAX, ylookup[EAX*4];
+			add EAX, frameplace;
+			mov ESI, p1;
+			lea ESI, [EAX+ESI*4];    //esi = p1
+			mov EDI, sx;
+			lea EDI, [EAX+EDI*4];    //edi = p0
+
+			movd MM0, sx;
+			punpckldq MM0, sy;
+			pi2fd MM0, MM0;          //mm0: (float)sy (float)sx
+			pshufw MM2, MM0, 0xee;   //mm2: (float)sy (float)sy
+			punpckldq MM0, MM0;      //mm0: (float)sx (float)sx
+			movd MM1, optistrx;
+			punpckldq MM1, optistry;
+			pfmul MM0, MM1;          //mm0: (float)sx*optistry (float)sx*optistrx
+			movd MM3, optiheix;
+			punpckldq MM3, optiheiy;
+			pfmul MM2, MM3;          //mm2: (float)sy*optiheiy (float)sy*optiheix
+			pfadd MM0, MM2;
+			movd MM3, optiaddx;
+			punpckldq MM3, optiaddy; //mm3: optiaddy optiaddx
+			pfadd MM0, MM3;          //mm0: diry diry
+
+			pxor MM5, MM5;
+
+			movd MM6, plc;
+			movd MM7, incr;
+			mov ECX, zbufoff;
+			mov EDX, j;
+
+	beg:  
+			pextrw EAX, MM6, 1;
+			mov EAX, angstart[EAX*4];
+			movq MM2, [EAX+EDX*8];   //mm2:      dist       col
+			pshufw MM3, MM2, 0xee;   //mm3:         ?      dist
+			pi2fd MM3, MM3;          //mm3:         ?   (f)dist
+			movq MM4, MM0;           //mm4:      diry      dirx
+			pfmul MM4, MM4;          //mm4:    diry^2    dirx^2
+			pfadd MM0, MM1;          //mm0: dirx+optx diry+opty (unrelated)
+			pfacc MM4, MM4;          //mm4: (x^2+y^2)   x^2+y^2
+			pfrsqrt MM4, MM4;        //mm4: 1/sqrt(*) 1/sqrt(*)
+			pfmul MM3, MM4;          //mm3:         0    zvalue
+			paddd MM6, MM7;          //mm6:            plc+incr (unrelated)
+
+				//Extra calculations for fog
+			pextrw EAX, MM2, 3;
+			punpcklbw MM2, MM5;
+			movq MM4, fogcol;
+			psubw MM4, MM2;
+			paddw MM4, MM4;
+			shr EAX, 4;
+			pmulhw MM4, foglut[EAX*8];
+			paddw MM2, MM4;
+			packuswb MM2, MM4;
+
+			movd [EDI], MM2;
+			movd [EDI+ECX], MM3;
+			add EDI, 4;
+			cmp EDI, ESI;
+			jb short beg;
+			pop EDI;
+			pop ESI;
+		}
+	}
+
+	void vrendzsse (long sx, long sy, int p1, int iplc, int iinc)
+	{
+		asm
+		{
+			push EBX;
+			push ESI;
+			push EDI;
+	begvasm_p3:
+			mov ESI, sx;
+			mov EAX, sy;
+			mov EDX, p1;
+			mov ECX, ylookup[EAX*4];
+			add ECX, frameplace;
+			lea EDX, [ECX+EDX*4];
+			lea EDI, [ECX+ESI*4];
+
+			mov ECX, ESI;
+			and ECX, 0xfffffffc;
+			cvtsi2ss XMM0, ECX;
+			cvtsi2ss XMM4, EAX;
+			movss XMM1, XMM0;
+			movss XMM5, XMM4;
+			mulss XMM0, optistrx;
+			mulss XMM1, optistry;
+			mulss XMM4, optiheix;
+			mulss XMM5, optiheiy;
+			addss XMM0, optiaddx;
+			addss XMM1, optiaddy;
+			addss XMM0, XMM4;
+			addss XMM1, XMM5;
+
+			shufps XMM0, XMM0, 0;
+			shufps XMM1, XMM1, 0;
+			movaps XMM2, opti4asm[2*16];
+			movaps XMM3, opti4asm[3*16];
+			addps XMM0, opti4asm[0*16];
+			addps XMM1, opti4asm[1*16];
+				//xmm0 =  xmm0      ^2 +  xmm1      ^2        (p)
+				//xmm2 = (xmm0+xmm2)^2 + (xmm1+xmm3)^2 - xmm0 (v)
+				//xmm1 = ...                                  (a)
+			addps XMM2, XMM0;  //This block converts inner loop...
+			addps XMM3, XMM1;  //from: 1 / sqrt(x*x + y*y), x += xi, y += yi;
+			mulps XMM0, XMM0;  //  to: 1 / sqrt(p), p += v, v += a;
+			mulps XMM1, XMM1;
+			mulps XMM2, XMM2;
+			mulps XMM3, XMM3;
+			addps XMM0, XMM1;
+			movaps XMM1, opti4asm[4*16];
+			addps XMM2, XMM3;
+			subps XMM2, XMM0;
+
+			mov p1, EDX;
+			mov ECX, zbufoff;
+			shl ESI, 2;
+			add ESI, uurend;
+			mov EBX, iplc;
+
+			cmp EDI, EDX;
+			jae short endv;
+
+				//Do first 0-3 pixels to align unrolled loop of 4
+			test EDI, 15;
+			jz short skip1va;
+
+			test EDI, 8;
+			jz short skipshufc;
+			shufps XMM0, XMM0, 0x4e; //rotate right by 2
+	skipshufc:
+			test EDI, 4;
+			jz short skipshufd;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+	skipshufd:
+
+	beg1va:
+			mov EDX, [ESI];
+			mov EAX, [ESI+MAXXDIM*4];
+			add EAX, EDX;
+			sar EDX, 16;
+			mov EDX, angstart[EDX*4];
+			mov [ESI], EAX;
+			mov EAX, [EDX+EBX*8];
+			mov [EDI], EAX;
+			cvtsi2ss XMM7, [EDX+EBX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+			add EBX, iinc;
+			add ESI, 4;
+			add EDI, 4;
+			cmp EDI, p1;
+			jz short endv;
+			test EDI, 15;
+			jnz short beg1va;
+
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+	skip1va:
+			lea EDX, [EDI+16];
+			cmp EDX, p1;
+			ja short prebeg1v;
+
+			cmp iinc, 0;
+			jl short beg4vn;
+
+	beg4vp:
+			movq MM6, [ESI];
+			movq MM7, [ESI+8];
+			pextrw EAX, MM6, 1;
+			pextrw EDX, MM6, 3;
+			paddd MM6, [ESI+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM0, [EAX+EBX*8];
+			movq MM1, [EDX+EBX*8+8];
+			pextrw EAX, MM7, 1;
+			pextrw EDX, MM7, 3;
+			paddd MM7, [ESI+8+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM2, [EAX+EBX*8+16];
+			movq MM3, [EDX+EBX*8+24];
+			add EBX, 4;
+
+			movq MM4, MM0;
+			movq MM5, MM2;
+			punpckldq MM0, MM1;
+			punpckldq MM2, MM3;
+			movntq [EDI], MM0;
+			movntq [EDI+8], MM2;
+
+			punpckhdq MM4, MM1;
+			punpckhdq MM5, MM3;
+			cvtpi2ps XMM7, MM4;
+			cvtpi2ps XMM4, MM5;
+			rsqrtps XMM3, XMM0;
+			movlhps XMM7, XMM4;
+			mulps XMM7, XMM3;
+			movntps [EDI+ECX], XMM7;
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+
+			movq [ESI], MM6;
+			movq [ESI+8], MM7;
+
+			add ESI, 16;
+			add EDI, 16;
+			lea EDX, [EDI+16];
+			cmp EDX, p1;
+			jbe short beg4vp;
+			cmp EDI, p1;
+			jae short endv;
+			jmp short prebeg1v;
+
+	beg4vn:
+			movq MM6, [ESI];
+			movq MM7, [ESI+8];
+			pextrw EAX, MM6, 1;
+			pextrw EDX, MM6, 3;
+			paddd MM6, [ESI+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM0, [EAX+EBX*8];
+			movq MM1, [EDX+EBX*8-8];
+			pextrw EAX, MM7, 1;
+			pextrw EDX, MM7, 3;
+			paddd MM7, [ESI+8+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM2, [EAX+EBX*8-16];
+			movq MM3, [EDX+EBX*8-24];
+			sub EBX, 4;
+
+			movq MM4, MM0;
+			movq MM5, MM2;
+			punpckldq MM0, MM1;
+			punpckldq MM2, MM3;
+			movntq [EDI], MM0;
+			movntq [EDI+8], MM2;
+
+			punpckhdq MM4, MM1;
+			punpckhdq MM5, MM3;
+			cvtpi2ps XMM7, MM4;
+			cvtpi2ps XMM4, MM5;
+			rsqrtps XMM3, XMM0;
+			movlhps XMM7, XMM4;
+			mulps XMM7, XMM3;
+			movntps [EDI+ECX], XMM7;
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+
+			movq [ESI], MM6;
+			movq [ESI+8], MM7;
+
+			add ESI, 16;
+			add EDI, 16;
+			lea EDX, [EDI+16];
+			cmp EDX, p1;
+			jbe short beg4vn;
+			cmp EDI, p1;
+			jae short endv;
+
+	prebeg1v:
+	beg1v:
+			mov EDX, [ESI];
+			mov EAX, [ESI+MAXXDIM*4];
+			add EAX, EDX;
+			sar EDX, 16;
+			mov EDX, angstart[EDX*4];
+			mov [ESI], EAX;
+			mov EAX, [EDX+EBX*8];
+			mov [EDI], EAX;
+			cvtsi2ss XMM7, [EDX+EBX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+			add EBX, iinc;
+			add ESI, 4;
+			add EDI, 4;
+			cmp EDI, p1;
+			jne short beg1v;
+	endv: 
+			pop EDI;
+			pop ESI;
+			pop EBX;
+		}
+	}
+
+	void vrendzfogsse (long sx, long sy, int p1, int iplc, int iinc)
+	{
+		asm
+		{
+			push EBX;
+			push ESI;
+			push EDI;
+	begvasm_p3:
+			mov ESI, sx;
+			mov EAX, sy;
+			mov EDX, p1;
+			mov ECX, ylookup[EAX*4];
+			add ECX, frameplace;
+			lea EDX, [ECX+EDX*4];
+			lea EDI, [ECX+ESI*4];
+
+			mov ECX, ESI;
+			and ECX, 0xfffffffc;
+			cvtsi2ss XMM0, ECX;
+			cvtsi2ss XMM4, EAX;
+			movss XMM1, XMM0;
+			movss XMM5, XMM4;
+			mulss XMM0, optistrx;
+			mulss XMM1, optistry;
+			mulss XMM4, optiheix;
+			mulss XMM5, optiheiy;
+			addss XMM0, optiaddx;
+			addss XMM1, optiaddy;
+			addss XMM0, XMM4;
+			addss XMM1, XMM5;
+
+			shufps XMM0, XMM0, 0;
+			shufps XMM1, XMM1, 0;
+			movaps XMM2, opti4asm[2*16];
+			movaps XMM3, opti4asm[3*16];
+			addps XMM0, opti4asm[0*16];
+			addps XMM1, opti4asm[1*16];
+				//xmm0 =  xmm0      ^2 +  xmm1      ^2        (p)
+				//xmm2 = (xmm0+xmm2)^2 + (xmm1+xmm3)^2 - xmm0 (v)
+				//xmm1 = ...                                  (a)
+			addps XMM2, XMM0;  //This block converts inner loop...
+			addps XMM3, XMM1;  //from: 1 / sqrt(x*x + y*y), x += xi, y += yi;
+			mulps XMM0, XMM0;  //  to: 1 / sqrt(p), p += v, v += a;
+			mulps XMM1, XMM1;
+			mulps XMM2, XMM2;
+			mulps XMM3, XMM3;
+			addps XMM0, XMM1;
+			movaps XMM1, opti4asm[4*16];
+			addps XMM2, XMM3;
+			subps XMM2, XMM0;
+
+			mov p1, EDX;
+			mov ECX, zbufoff;
+			shl ESI, 2;
+			add ESI, uurend;
+			mov EBX, iplc;
+
+			cmp EDI, EDX;
+			jae short endv;
+
+				//Do first 0-3 pixels to align unrolled loop of 4
+			test EDI, 15;
+			jz short skip1va;
+
+			test EDI, 8;
+			jz short skipshufc;
+			shufps XMM0, XMM0, 0x4e; //rotate right by 2
+	skipshufc:
+			test EDI, 4;
+			jz short skipshufd;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+	skipshufd:
+
+	beg1va:
+			mov EDX, [ESI];
+			mov EAX, [ESI+MAXXDIM*4];
+			add EAX, EDX;
+			sar EDX, 16;
+			mov EDX, angstart[EDX*4];
+			mov [ESI], EAX;
+
+				//Z
+			cvtsi2ss XMM7, [EDX+EBX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+
+				//Col
+			punpcklbw MM0, [EDX+EBX*8];
+			psrlw MM0, 8;
+			movq MM1, fogcol;
+			psubw MM1, MM0;
+			paddw MM1, MM1;
+			mov EAX, [EDX+EBX*8+4];
+			shr EAX, 16+4;
+			pmulhw MM1, foglut[EAX*8];
+			paddw MM0, MM1;
+			packuswb MM0, MM1;
+			movd [EDI], MM0;
+
+			add EBX, iinc;
+			add ESI, 4;
+			add EDI, 4;
+			cmp EDI, p1;
+			jz short endv;
+			test EDI, 15;
+			jnz short beg1va;
+
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+	skip1va:
+			lea EDX, [EDI+16];
+			cmp EDX, p1;
+			ja short prebeg1v;
+
+			cmp iinc, 0;
+			jl short beg4vn;
+
+	beg4vp:
+			movq MM6, [ESI];
+			movq MM7, [ESI+8];
+			pextrw EAX, MM6, 1;
+			pextrw EDX, MM6, 3;
+			paddd MM6, [ESI+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM4, [EAX+EBX*8];
+			movq MM1, [EDX+EBX*8+8];
+			pextrw EAX, MM7, 1;
+			pextrw EDX, MM7, 3;
+			paddd MM7, [ESI+8+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM5, [EAX+EBX*8+16];
+			movq MM3, [EDX+EBX*8+24];
+			add EBX, 4;
+
+				//Do Z
+			movq MM0, MM4;
+			movq MM2, MM5;
+			punpckhdq MM4, MM1;
+			punpckhdq MM5, MM3;
+			cvtpi2ps XMM7, MM4;
+			cvtpi2ps XMM4, MM5;
+			rsqrtps XMM3, XMM0;
+			movlhps XMM7, XMM4;
+			mulps XMM7, XMM3;
+			movntps [EDI+ECX], XMM7;
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+
+			movq [ESI], MM6;
+			movq [ESI+8], MM7;
+
+				//Do color
+			pxor MM7, MM7;
+			punpcklbw MM0, MM7;
+			punpcklbw MM1, MM7;
+			punpcklbw MM2, MM7;
+			punpcklbw MM3, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM0;
+			paddw MM7, MM7;
+			pextrw EAX, MM4, 1;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM0, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM1;
+			paddw MM7, MM7;
+			pextrw EAX, MM4, 3;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM1, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM2;
+			paddw MM7, MM7;
+			pextrw EAX, MM5, 1;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM2, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM3;
+			paddw MM7, MM7;
+			pextrw EAX, MM5, 3;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM3, MM7;
+
+			packuswb MM0, MM1;
+			packuswb MM2, MM3;
+			movntq [EDI], MM0;
+			movntq [EDI+8], MM2;
+
+			add ESI, 16;
+			add EDI, 16;
+			lea EDX, [EDI+16];
+			cmp EDX, p1;
+			jbe short beg4vp;
+			cmp EDI, p1;
+			jae short endv;
+			jmp short prebeg1v;
+
+	beg4vn:
+			movq MM6, [ESI];
+			movq MM7, [ESI+8];
+			pextrw EAX, MM6, 1;
+			pextrw EDX, MM6, 3;
+			paddd MM6, [ESI+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM4, [EAX+EBX*8];
+			movq MM1, [EDX+EBX*8-8];
+			pextrw EAX, MM7, 1;
+			pextrw EDX, MM7, 3;
+			paddd MM7, [ESI+8+MAXXDIM*4];
+			mov EAX, angstart[EAX*4];
+			mov EDX, angstart[EDX*4];
+			movq MM5, [EAX+EBX*8-16];
+			movq MM3, [EDX+EBX*8-24];
+			sub EBX, 4;
+
+				//Do Z
+			movq MM0, MM4;
+			movq MM2, MM5;
+			punpckhdq MM4, MM1;
+			punpckhdq MM5, MM3;
+			cvtpi2ps XMM7, MM4;
+			cvtpi2ps XMM4, MM5;
+			rsqrtps XMM3, XMM0;
+			movlhps XMM7, XMM4;
+			mulps XMM7, XMM3;
+			movntps [EDI+ECX], XMM7;
+			addps XMM0, XMM2;
+			addps XMM2, XMM1;
+
+			movq [ESI], MM6;
+			movq [ESI+8], MM7;
+
+				//Do color
+			pxor MM7, MM7;
+			punpcklbw MM0, MM7;
+			punpcklbw MM1, MM7;
+			punpcklbw MM2, MM7;
+			punpcklbw MM3, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM0;
+			paddw MM7, MM7;
+			pextrw EAX, MM4, 1;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM0, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM1;
+			paddw MM7, MM7;
+			pextrw EAX, MM4, 3;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM1, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM2;
+			paddw MM7, MM7;
+			pextrw EAX, MM5, 1;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM2, MM7;
+
+			movq MM7, fogcol;
+			psubw MM7, MM3;
+			paddw MM7, MM7;
+			pextrw EAX, MM5, 3;
+			shr EAX, 4;
+			pmulhw MM7, foglut[EAX*8];
+			paddw MM3, MM7;
+
+			packuswb MM0, MM1;
+			packuswb MM2, MM3;
+			movntq [EDI], MM0;
+			movntq [EDI+8], MM2;
+
+			add ESI, 16;
+			add EDI, 16;
+			lea EDX, [EDI+16];
+			cmp EDX, p1;
+			jbe short beg4vn;
+			cmp EDI, p1;
+			jae short endv;
+
+	prebeg1v:
+	beg1v:
+			mov EDX, [ESI];
+			mov EAX, [ESI+MAXXDIM*4];
+			add EAX, EDX;
+			sar EDX, 16;
+			mov EDX, angstart[EDX*4];
+			mov [ESI], EAX;
+
+				//Z
+			cvtsi2ss XMM7, [EDX+EBX*8+4];
+			rsqrtss XMM3, XMM0;
+			mulss XMM7, XMM3;
+			shufps XMM0, XMM0, 0x39; //rotate right by 1
+			movss [EDI+ECX], XMM7;
+
+				//Col
+			punpcklbw MM0, [EDX+EBX*8];
+			psrlw MM0, 8;
+			movq MM1, fogcol;
+			psubw MM1, MM0;
+			paddw MM1, MM1;
+			mov EAX, [EDX+EBX*8+4];
+			shr EAX, 16+4;
+			pmulhw MM1, foglut[EAX*8];
+			paddw MM0, MM1;
+			packuswb MM0, MM1;
+			movd [EDI], MM0;
+
+			add EBX, iinc;
+			add ESI, 4;
+			add EDI, 4;
+			cmp EDI, p1;
+			jne short beg1v;
+	endv: 
+			pop EDI;
+			pop ESI;
+			pop EBX;
+		}
+	}
+
+	void vrendz3dn (long sx, long sy, int p1, int iplc, int iinc)
+	{
+		asm
+		{
+			push EBX;
+			push ESI;
+			push EDI;
+			mov ESI, p1;
+			mov EDI, sx;
+			cmp EDI, ESI;
+			jae short endv;
+			mov EAX, sy;
+			mov EAX, ylookup[EAX*4];
+			add EAX, frameplace;
+			lea ESI, [EAX+ESI*4];    //esi = p1
+			lea EDI, [EAX+EDI*4];    //edi = p0
+
+			movd MM0, sx;
+			punpckldq MM0, sy;
+			pi2fd MM0, MM0;          //mm0: (float)sy (float)sx
+			pshufw MM2, MM0, 0xee;   //mm2: (float)sy (float)sy
+			punpckldq MM0, MM0;      //mm0: (float)sx (float)sx
+			movd MM1, optistrx;
+			punpckldq MM1, optistry;
+			pfmul MM0, MM1;          //mm0: (float)sx*optistry (float)sx*optistrx
+			movd MM3, optiheix;
+			punpckldq MM3, optiheiy;
+			pfmul MM2, MM3;          //mm2: (float)sy*optiheiy (float)sy*optiheix
+			pfadd MM0, MM2;
+			movd MM3, optiaddx;
+			punpckldq MM3, optiaddy; //mm3: optiaddy optiaddx
+			pfadd MM0, MM3;          //mm0: diry diry
+
+			mov ECX, zbufoff;
+			mov EDX, iplc;
+			mov EBX, sx;
+			mov EAX, uurend;
+			lea EBX, [EAX+EBX*4];
+
+	begv_3dn:
+			movd MM5, [EBX];
+			pextrw EAX, MM5, 1;
+			paddd MM5, [EBX+MAXXDIM*4];
+			movd [EBX], MM5;
+			mov EAX, angstart[EAX*4];
+			movq MM2, [EAX+EDX*8];   //mm2:      dist       col
+			pshufw MM3, MM2, 0xee;   //mm3:         ?      dist
+			pi2fd MM3, MM3;          //mm3:         ?   (f)dist
+			movq MM4, MM0;           //mm4:      diry      dirx
+			pfmul MM4, MM4;          //mm4:    diry^2    dirx^2
+			pfadd MM0, MM1;          //mm0: dirx+optx diry+opty (unrelated)
+			pfacc MM4, MM4;          //mm4: (x^2+y^2)   x^2+y^2
+			pfrsqrt MM4, MM4;        //mm4: 1/sqrt(*) 1/sqrt(*)
+			pfmul MM3, MM4;          //mm3:         0    zvalue
+			movd [EDI], MM2;
+			movd [EDI+ECX], MM3;
+			add EDX, iinc;
+			add EBX, 4;
+			add EDI, 4;
+			cmp EDI, ESI;
+			jb short begv_3dn;
+	endv: 
+			pop EDI;
+			pop ESI;
+			pop EBX;
+		}
+	}
+
+	void vrendzfog3dn (long sx, long sy, int p1, int iplc, int iinc)
+	{
+		asm
+		{
+			push EBX;
+			push ESI;
+			push EDI;
+			mov ESI, p1;
+			mov EDI, sx;
+			cmp EDI, ESI;
+			jae short endv;
+			mov EAX, sy;
+			mov EAX, ylookup[EAX*4];
+			add EAX, frameplace;
+			lea ESI, [EAX+ESI*4];    //esi = p1
+			lea EDI, [EAX+EDI*4];    //edi = p0
+
+			movd MM0, sx;
+			punpckldq MM0, sy;
+			pi2fd MM0, MM0;          //mm0: (float)sy (float)sx
+			pshufw MM2, MM0, 0xee;   //mm2: (float)sy (float)sy
+			punpckldq MM0, MM0;      //mm0: (float)sx (float)sx
+			movd MM1, optistrx;
+			punpckldq MM1, optistry;
+			pfmul MM0, MM1;          //mm0: (float)sx*optistry (float)sx*optistrx
+			movd MM3, optiheix;
+			punpckldq MM3, optiheiy;
+			pfmul MM2, MM3;          //mm2: (float)sy*optiheiy (float)sy*optiheix
+			pfadd MM0, MM2;
+			movd MM3, optiaddx;
+			punpckldq MM3, optiaddy; //mm3: optiaddy optiaddx
+			pfadd MM0, MM3;          //mm0: diry diry
+
+			pxor MM6, MM6;
+
+			mov ECX, zbufoff;
+			mov EDX, iplc;
+			mov EBX, sx;
+			mov EAX, uurend;
+			lea EBX, [EAX+EBX*4];
+
+	begv_3dn:
+			movd MM5, [EBX];
+			pextrw EAX, MM5, 1;
+			paddd MM5, [EBX+MAXXDIM*4];
+			movd [EBX], MM5;
+			mov EAX, angstart[EAX*4];
+			movq MM2, [EAX+EDX*8];   //mm2:      dist       col
+			pshufw MM3, MM2, 0xee;   //mm3:         ?      dist
+			pi2fd MM3, MM3;          //mm3:         ?   (f)dist
+			movq MM4, MM0;           //mm4:      diry      dirx
+			pfmul MM4, MM4;          //mm4:    diry^2    dirx^2
+			pfadd MM0, MM1;          //mm0: dirx+optx diry+opty (unrelated)
+			pfacc MM4, MM4;          //mm4: (x^2+y^2)   x^2+y^2
+			pfrsqrt MM4, MM4;        //mm4: 1/sqrt(*) 1/sqrt(*)
+			pfmul MM3, MM4;          //mm3:         0    zvalue
+
+				//Extra calculations for fog
+			pextrw EAX, MM2, 3;
+			punpcklbw MM2, MM6;
+			movq MM4, fogcol;
+			psubw MM4, MM2;
+			paddw MM4, MM4;
+			shr EAX, 4;
+			pmulhw MM4, foglut[EAX*8];
+			paddw MM2, MM4;
+			packuswb MM2, MM4;
+
+			movd [EDI], MM2;
+			movd [EDI+ECX], MM3;
+			add EDX, iinc;
+			add EBX, 4;
+			add EDI, 4;
+			cmp EDI, ESI;
+			jb short begv_3dn;
+	endv: 
+			pop EDI;
+			pop ESI;
+			pop EBX;
+		}
+	}
+} // end else USEZBUFFER != 1
+
+void setcamera (dpoint3d *ipo, dpoint3d *ist, dpoint3d *ihe, dpoint3d *ifo,
+					 float dahx, float dahy, float dahz)
+{
+	int i, j;
+
+	gipos.x = ipo.x; gipos.y = ipo.y; gipos.z = ipo.z;
+	gistr.x = ist.x; gistr.y = ist.y; gistr.z = ist.z;
+	gihei.x = ihe.x; gihei.y = ihe.y; gihei.z = ihe.z;
+	gifor.x = ifo.x; gifor.y = ifo.y; gifor.z = ifo.z;
+	gihx = dahx; gihy = dahy; gihz = dahz;
+
+	gixs.x = gistr.x; gixs.y = gihei.x; gixs.z = gifor.x;
+	giys.x = gistr.y; giys.y = gihei.y; giys.z = gifor.y;
+	gizs.x = gistr.z; gizs.y = gihei.z; gizs.z = gifor.z;
+	giadd.x = -(gipos.x*gistr.x + gipos.y*gistr.y + gipos.z*gistr.z);
+	giadd.y = -(gipos.x*gihei.x + gipos.y*gihei.y + gipos.z*gihei.z);
+	giadd.z = -(gipos.x*gifor.x + gipos.y*gifor.y + gipos.z*gifor.z);
+
+	gcorn[0].x = -gihx*gistr.x - gihy*gihei.x + gihz*gifor.x;
+	gcorn[0].y = -gihx*gistr.y - gihy*gihei.y + gihz*gifor.y;
+	gcorn[0].z = -gihx*gistr.z - gihy*gihei.z + gihz*gifor.z;
+	gcorn[1].x = xres*gistr.x+gcorn[0].x;
+	gcorn[1].y = xres*gistr.y+gcorn[0].y;
+	gcorn[1].z = xres*gistr.z+gcorn[0].z;
+	gcorn[2].x = yres*gihei.x+gcorn[1].x;
+	gcorn[2].y = yres*gihei.y+gcorn[1].y;
+	gcorn[2].z = yres*gihei.z+gcorn[1].z;
+	gcorn[3].x = yres*gihei.x+gcorn[0].x;
+	gcorn[3].y = yres*gihei.y+gcorn[0].y;
+	gcorn[3].z = yres*gihei.z+gcorn[0].z;
+	for(j=0,i=3;j<4;i=j++)
+	{
+		ginor[i].x = gcorn[i].y*gcorn[j].z - gcorn[i].z*gcorn[j].y;
+		ginor[i].y = gcorn[i].z*gcorn[j].x - gcorn[i].x*gcorn[j].z;
+		ginor[i].z = gcorn[i].x*gcorn[j].y - gcorn[i].y*gcorn[j].x;
 	}
 }
 
-// line 2315 hrendzfogsse
+void opticast()
+{
+	float f, ff, cx, cy, fx, fy, gx, gy, x0, y0, x1, y1, x2, y2, x3, y3;
+	int i, j, sx, sy, p0, p1, cx16, cy16, kadd, kmul, u, u1, ui;
+
+	if (gifor.z < 0) giforzsgn = -1; else giforzsgn = 1; //giforzsgn = (gifor.z < 0);
+
+	gixyi[0] = (VSID<<2); gixyi[1] = -gixyi[0];
+	glipos.x = (cast(int)gipos.x);
+	glipos.y = (cast(int)gipos.y);
+	glipos.z = (cast(int)gipos.z);
+	gpixy = cast(int)&sptr[glipos.y*VSID + glipos.x];
+	ftol(gipos.z*PREC-.5f,&gposz);
+	gposxfrac[1] = gipos.x - cast(float)glipos.x; gposxfrac[0] = 1-gposxfrac[1];
+	gposyfrac[1] = gipos.y - cast(float)glipos.y; gposyfrac[0] = 1-gposyfrac[1];
+	static if(USEV5ASM)
+	{
+		for(j=u=0;j<gmipnum;j++,u+=i)
+			for(i=0;i<(256>>j)+4;i++)
+				gylookup[i+u] = ((((gposz>>j)-i*PREC)>>(16-j))&0x0000ffff);
+		gxmip = max(vx5.mipscandist,4)*PREC;
+	} else
+	{
+		for(i=0;i<256+4;i++) gylookup[i] = (i*PREC-gposz);
+	}
+	gmaxscandist = min(max(vx5.maxscandist,1),2047)*PREC;
+
+	static if(USEZBUFFER != 1)
+	{
+		hrend = hrendnoz; vrend = vrendnoz;
+	} else
+	{
+		if (ofogdist < 0)
+		{
+			if (cputype&(1<<25)) { hrend = &hrendzsse; vrend = &vrendzsse; }
+								 else { hrend = &hrendz3dn; vrend = &vrendz3dn; }
+		}
+		else
+		{
+			if (cputype&(1<<25)) { hrend = &hrendzfogsse; vrend = &vrendzfogsse; }
+								 else { hrend = &hrendzfog3dn; vrend = &vrendzfog3dn; }
+
+		}
+	}
+
+	if (ofogdist < 0) nskypic = skypic;
+				  else { nskypic = skyoff = 0; } //Optimization hack: draw sky as pure black when using fog
+
+	gstartv = cast(ubyte *)*cast(int *)gpixy;
+	if (glipos.z >= gstartv[1])
+	{
+		do
+		{
+			if (!gstartv[0]) return;
+			gstartv += gstartv[0]*4;
+		} while (glipos.z >= gstartv[1]);
+		if (glipos.z < gstartv[3]) return;
+		gstartz0 = gstartv[3];
+	} else gstartz0 = 0;
+	gstartz1 = gstartv[1];
+
+	if (gifor.z == 0) f = 32000; else f = gihz/gifor.z;
+	f = min(max(f,-32000.0f),32000.0f);
+	cx = gistr.z*f + gihx;
+	cy = gihei.z*f + gihy;
+
+	wx0 = cast(float)(-(vx5.anginc)); wx1 = cast(float)(xres-1+(vx5.anginc));
+	wy0 = cast(float)(-(vx5.anginc)); wy1 = cast(float)(yres-1+(vx5.anginc));
+	ftol(wx0,&iwx0); ftol(wx1,&iwx1);
+	ftol(wy0,&iwy0); ftol(wy1,&iwy1);
+
+	fx = wx0-cx; fy = wy0-cy; gx = wx1-cx; gy = wy1-cy;
+	x0 = x3 = wx0; y0 = y1 = wy0; x1 = x2 = wx1; y2 = y3 = wy1;
+	if (fy < 0)
+	{
+		if (fx < 0) { f = sqrt(fx*fy); x0 = cx-f; y0 = cy-f; }
+		if (gx > 0) { f = sqrt(-gx*fy); x1 = cx+f; y1 = cy-f; }
+	}
+	if (gy > 0)
+	{
+		if (gx > 0) { f = sqrt(gx*gy); x2 = cx+f; y2 = cy+f; }
+		if (fx < 0) { f = sqrt(-fx*gy); x3 = cx-f; y3 = cy+f; }
+	}
+	if (x0 > x1) { if (fx < 0) y0 = fx/gx*fy + cy; else y1 = gx/fx*fy + cy; }
+	if (y1 > y2) { if (fy < 0) x1 = fy/gy*gx + cx; else x2 = gy/fy*gx + cx; }
+	if (x2 < x3) { if (fx < 0) y3 = fx/gx*gy + cy; else y2 = gx/fx*gy + cy; }
+	if (y3 < y0) { if (fy < 0) x0 = fy/gy*fx + cx; else x3 = gy/fy*fx + cx; }
+		//This makes precision errors cause pixels to overwrite rather than omit
+	x0 -= .01; x1 += .01;
+	y1 -= .01; y2 += .01;
+	x3 -= .01; x2 += .01;
+	y0 -= .01; y3 += .01;
+
+	f = cast(float)PREC / gihz;
+	optistrx = gistr.x*f; optiheix = gihei.x*f; optiaddx = gcorn[0].x*f;
+	optistry = gistr.y*f; optiheiy = gihei.y*f; optiaddy = gcorn[0].y*f;
+//#ifdef _MSC_VER
+	opti4[0].y = optistrx; opti4[0].z = optistrx*2; opti4[0].z2 = optistrx*3;
+	opti4[1].y = optistry; opti4[1].z = optistry*2; opti4[1].z2 = optistry*3;
+	opti4[2].x = opti4[2].y = opti4[2].z = opti4[2].z2 = optistrx*4.0f;
+	opti4[3].x = opti4[3].y = opti4[3].z = opti4[3].z2 = optistry*4.0f;
+	opti4[4].x = opti4[4].y = opti4[4].z = opti4[4].z2 = (optistrx*optistrx + optistry*optistry)*32.0f; //NEW ALGO!
+//#endif
+
+	ftol(cx*65536,&cx16);
+	ftol(cy*65536,&cy16);
+
+	ftol((x1-x0)/vx5.anginc,&j);
+	if ((fy < 0) && (j > 0)) //(cx,cy),(x0,wy0),(x1,wy0)
+	{
+		ff = (x1-x0) / cast(float)j; grd = 1.0f / (wy0-cy);
+		gscanptr = cast(castdat *)radar; skycurlng = -1; skycurdir = -giforzsgn;
+		for(i=0,f=x0+ff*.5f;i<j;f+=ff,i++)
+		{
+			vline(cx,cy,f,wy0,&p0,&p1);
+			if (giforzsgn < 0) angstart[i] = gscanptr+p0; else angstart[i] = gscanptr-p1;
+			gscanptr += labs(p1-p0)+1;
+		}
+
+		j <<= 16; f = cast(float)j / ((x1-x0)*grd); ftol((cx-x0)*grd*f,&kadd);
+		ftol(cx-.5f,&p1); p0 = lbound0(p1+1,xres); p1 = lbound0(p1,xres);
+		ftol(cy-0.50005f,&sy); if (sy >= yres) sy = yres-1;
+		ff = (fabs(cast(float)p1-cx)+1)*f/2147483647.0 + cy; //Anti-crash hack
+		while ((ff < sy) && (sy >= 0)) sy--;
+		if (sy >= 0)
+		{
+			ftol(f,&kmul);
+			for(;sy>=0;sy--) if (isshldiv16safe(kmul,(sy<<16)-cy16)) break; //Anti-crash hack
+			if (giforzsgn < 0) i = -sy; else i = sy;
+			for(;sy>=0;sy--,i-=giforzsgn)
+			{
+				ui = shldiv16(kmul,(sy<<16)-cy16);
+				u = mulshr16((p0<<16)-cx16,ui)+kadd;
+				while ((p0 > 0) && (u >= ui)) { u -= ui; p0--; }
+				u1 = (p1-p0)*ui + u;
+				while ((p1 < xres) && (u1 < j)) { u1 += ui; p1++; }
+				if (p0 < p1) hrend(p0,sy,p1,u,ui,i);
+			}
+			asm {emms;}
+		}
+	}
+
+	ftol((y2-y1)/vx5.anginc,&j);
+	if ((gx > 0) && (j > 0)) //(cx,cy),(wx1,y1),(wx1,y2)
+	{
+		ff = (y2-y1) / cast(float)j; grd = 1.0f / (wx1-cx);
+		gscanptr = cast(castdat *)radar; skycurlng = -1; skycurdir = -giforzsgn;
+		for(i=0,f=y1+ff*.5f;i<j;f+=ff,i++)
+		{
+			hline(cx,cy,wx1,f,&p0,&p1);
+			if (giforzsgn < 0) angstart[i] = gscanptr-p0; else angstart[i] = gscanptr+p1;
+			gscanptr += labs(p1-p0)+1;
+		}
+
+		j <<= 16; f = cast(float)j / ((y2-y1)*grd); ftol((cy-y1)*grd*f,&kadd);
+		ftol(cy-.5f,&p1); p0 = lbound0(p1+1,yres); p1 = lbound0(p1,yres);
+		ftol(cx+0.50005f,&sx); if (sx < 0) sx = 0;
+		ff = (fabs(cast(float)p1-cy)+1)*f/2147483647.0 + cx; //Anti-crash hack
+		while ((ff > sx) && (sx < xres)) sx++;
+		if (sx < xres)
+		{
+			ftol(f,&kmul);
+			for(;sx<xres;sx++) if (isshldiv16safe(kmul,(sx<<16)-cx16)) break; //Anti-crash hack
+			for(;sx<xres;sx++)
+			{
+				ui = shldiv16(kmul,(sx<<16)-cx16);
+				u = mulshr16((p0<<16)-cy16,ui)+kadd;
+				while ((p0 > 0) && (u >= ui)) { u -= ui; lastx[--p0] = sx; }
+				uurend[sx] = u; uurend[sx+MAXXDIM] = ui; u += (p1-p0)*ui;
+				while ((p1 < yres) && (u < j)) { u += ui; lastx[p1++] = sx; }
+			}
+			if (giforzsgn < 0)
+				  { for(sy=p0;sy<p1;sy++) vrend(lastx[sy],sy,xres,lastx[sy],1); }
+			else { for(sy=p0;sy<p1;sy++) vrend(lastx[sy],sy,xres,-lastx[sy],-1); }
+			asm {emms;}
+		}
+	}
+
+	ftol((x2-x3)/vx5.anginc,&j);
+	if ((gy > 0) && (j > 0)) //(cx,cy),(x2,wy1),(x3,wy1)
+	{
+		ff = (x2-x3) / cast(float)j; grd = 1.0f / (wy1-cy);
+		gscanptr = cast(castdat *)radar; skycurlng = -1; skycurdir = giforzsgn;
+		for(i=0,f=x3+ff*.5f;i<j;f+=ff,i++)
+		{
+			vline(cx,cy,f,wy1,&p0,&p1);
+			if (giforzsgn < 0) angstart[i] = gscanptr-p0; else angstart[i] = gscanptr+p1;
+			gscanptr += labs(p1-p0)+1;
+		}
+
+		j <<= 16; f = cast(float)j / ((x2-x3)*grd); ftol((cx-x3)*grd*f,&kadd);
+		ftol(cx-.5f,&p1); p0 = lbound0(p1+1,xres); p1 = lbound0(p1,xres);
+		ftol(cy+0.50005f,&sy); if (sy < 0) sy = 0;
+		ff = (fabs(cast(float)p1-cx)+1)*f/2147483647.0 + cy; //Anti-crash hack
+		while ((ff > sy) && (sy < yres)) sy++;
+		if (sy < yres)
+		{
+			ftol(f,&kmul);
+			for(;sy<yres;sy++) if (isshldiv16safe(kmul,(sy<<16)-cy16)) break; //Anti-crash hack
+			if (giforzsgn < 0) i = sy; else i = -sy;
+			for(;sy<yres;sy++,i-=giforzsgn)
+			{
+				ui = shldiv16(kmul,(sy<<16)-cy16);
+				u = mulshr16((p0<<16)-cx16,ui)+kadd;
+				while ((p0 > 0) && (u >= ui)) { u -= ui; p0--; }
+				u1 = (p1-p0)*ui + u;
+				while ((p1 < xres) && (u1 < j)) { u1 += ui; p1++; }
+				if (p0 < p1) hrend(p0,sy,p1,u,ui,i);
+			}
+			asm {emms;}
+		}
+	}
+
+	ftol((y3-y0)/vx5.anginc,&j);
+	if ((fx < 0) && (j > 0)) //(cx,cy),(wx0,y3),(wx0,y0)
+	{
+		ff = (y3-y0) / cast(float)j; grd = 1.0f / (wx0-cx);
+		gscanptr = cast(castdat *)radar; skycurlng = -1; skycurdir = giforzsgn;
+		for(i=0,f=y0+ff*.5f;i<j;f+=ff,i++)
+		{
+			hline(cx,cy,wx0,f,&p0,&p1);
+			if (giforzsgn < 0) angstart[i] = gscanptr+p0; else angstart[i] = gscanptr-p1;
+			gscanptr += labs(p1-p0)+1;
+		}
+
+		j <<= 16; f = cast(float)j / ((y3-y0)*grd); ftol((cy-y0)*grd*f,&kadd);
+		ftol(cy-.5f,&p1); p0 = lbound0(p1+1,yres); p1 = lbound0(p1,yres);
+		ftol(cx-0.50005f,&sx); if (sx >= xres) sx = xres-1;
+		ff = (fabs(cast(float)p1-cy)+1)*f/2147483647.0 + cx; //Anti-crash hack
+		while ((ff < sx) && (sx >= 0)) sx--;
+		if (sx >= 0)
+		{
+			ftol(f,&kmul);
+			for(;sx>=0;sx--) if (isshldiv16safe(kmul,(sx<<16)-cx16)) break; //Anti-crash hack
+			for(;sx>=0;sx--)
+			{
+				ui = shldiv16(kmul,(sx<<16)-cx16);
+				u = mulshr16((p0<<16)-cy16,ui)+kadd;
+				while ((p0 > 0) && (u >= ui)) { u -= ui; lastx[--p0] = sx; }
+				uurend[sx] = u; uurend[sx+MAXXDIM] = ui; u += (p1-p0)*ui;
+				while ((p1 < yres) && (u < j)) { u += ui; lastx[p1++] = sx; }
+			}
+			for(sy=p0;sy<p1;sy++) vrend(0,sy,lastx[sy]+1,0,giforzsgn);
+			asm {emms;}
+		}
+	}
+}
+
+// line 3691 setsideshades
