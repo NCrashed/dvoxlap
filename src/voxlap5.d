@@ -5218,4 +5218,2016 @@ int loaddta (const char *filename, dpoint3d *ipo, dpoint3d *ist, dpoint3d *ihe, 
 	return(1);
 }
 
-// line 4748 loadpng
+int loadpng (const char *filename, dpoint3d *ipo, dpoint3d *ist, dpoint3d *ihe, dpoint3d *ifo)
+{
+	uint* pngdat; 
+	uint[5] dat;
+	int i, j, k, l, p, leng, minz = 255, maxz = 0;
+	ubyte* v, buf;
+	float f;
+	FILE *fp;
+
+	if (!vbuf) { vbuf = cast(int *)malloc((VOXSIZ>>2)<<2); if (!vbuf) evilquit("vbuf malloc failed"); }
+	if (!vbit) { vbit = cast(int *)malloc((VOXSIZ>>7)<<2); if (!vbit) evilquit("vbuf malloc failed"); }
+
+	if (VSID != 1024) return(0);
+	v = cast(ubyte *)(&vbuf[1]); //1st dword for voxalloc compare logic optimization
+
+	if (!kzopen(filename)) return(0);
+	leng = kzfilelength();
+	buf = cast(ubyte *)malloc(leng); if (!buf) { kzclose(); return(0); }
+	kzread(buf,leng);
+	kzclose();
+
+	kpgetdim(buf,leng,cast(int *)&i,cast(int *)&j); if ((i != VSID) && (j != VSID)) { free(buf); return(0); }
+	pngdat = cast(uint *)(&vbuf[(VOXSIZ-VSID*VSID*4)>>2]);
+	if (kprender(buf,leng,cast(int)pngdat,VSID<<2,VSID,VSID,0,0) < 0) return(0);
+	free(buf);
+
+	for(i=0;i<VSID*VSID;i++)
+	{
+		if ((pngdat[i]>>24) < minz) minz = (pngdat[i]>>24);
+		if ((pngdat[i]>>24) > maxz) maxz = (pngdat[i]>>24);
+	}
+
+		//Fill board data
+	minz = lbound(128-((minz+maxz)>>1),-minz,255-maxz);
+	for(p=0;p<VSID*VSID;p++)
+	{
+		dat[0] = pngdat[p];
+		dat[1] = pngdat[((p-1)&(VSID-1))+((p     )&((VSID-1)*VSID))];
+		dat[2] = pngdat[((p+1)&(VSID-1))+((p     )&((VSID-1)*VSID))];
+		dat[3] = pngdat[((p  )&(VSID-1))+((p-VSID)&((VSID-1)*VSID))];
+		dat[4] = pngdat[((p  )&(VSID-1))+((p+VSID)&((VSID-1)*VSID))];
+
+		j = 1; l = dat[0];
+		for(i=4;i>0;i--)
+			if ((cast(int)((dat[i]>>24)-(dat[0]>>24))) > j)
+				{ j = (dat[i]>>24)-(dat[0]>>24); l = dat[i]; }
+
+		sptr[p] = v;
+		v[0] = 0;
+		v[1] = (pngdat[p]>>24)+minz;
+		v[2] = (pngdat[p]>>24)+minz+j-1;
+		v[3] = 0; //dummy (z top)
+		v += 4;
+		k = (pngdat[p]&0xffffff)|0x80000000;
+		if (j == 2)
+		{
+			l = (((  l     &255)-( k     &255))>>1)      +
+				 (((((l>> 8)&255)-((k>> 8)&255))>>1)<< 8) +
+				 (((((l>>16)&255)-((k>>16)&255))>>1)<<16);
+		}
+		else if (j > 2)
+		{
+			l = (((  l     &255)-( k     &255))/j)      +
+				 (((((l>> 8)&255)-((k>> 8)&255))/j)<< 8) +
+				 (((((l>>16)&255)-((k>>16)&255))/j)<<16);
+		}
+		*cast(int *)v = k; v += 4; j--;
+		while (j) { k += l; *cast(int *)v = colorjit(k,0x30303); v += 4; j--; }
+	}
+
+	memset(&sptr[VSID*VSID],0,sizeof(sptr)-VSID*VSID*4);
+	vbiti = ((cast(int)v-cast(int)vbuf)>>2); //# vbuf longs/vbit bits allocated
+	clearbuf(cast(void *)vbit,vbiti>>5,-1);
+	clearbuf(cast(void *)&vbit[vbiti>>5],(VOXSIZ>>7)-(vbiti>>5),0);
+	vbit[vbiti>>5] = (1<<vbiti)-1;
+
+	vx5.globalmass = calcglobalmass();
+
+	ipo.x = VSID*.5; ipo.y = VSID*.5; ipo.z = 128;
+	f = 0.0*PI/180.0;
+	ist.x = cos(f); ist.y = sin(f); ist.z = 0;
+	ihe.x = 0; ihe.y = 0; ihe.z = 1;
+	ifo.x = sin(f); ifo.y = -cos(f); ifo.z = 0;
+
+	gmipnum = 1; vx5.flstnum = 0;
+	updatebbox(0,0,0,VSID,VSID,MAXZDIM,0);
+	return(1);
+}
+
+//Quake3 .BSP loading code begins --------------------------------------------
+struct vlinerectyp 
+{ 
+	int c, i; 
+	float z, z1; 
+}
+
+static point3d q3pln[5250];
+static float q3pld[5250];
+static float q3vz[256];
+static int q3nod[4850][3];
+static int q3lf[4850];
+
+int vlinebsp (float x, float y, float z0, float z1, float *dvz)
+{
+	vlinerectyp vlrec[64];
+	float z, t;
+	int i, j, vcnt, vlcnt;
+	char vt[256];
+
+	vcnt = 1; i = 0; vlcnt = 0; vt[0] = 17;
+	while (true)
+	{
+		if (i < 0)
+		{
+			if (vt[vcnt-1] != (q3lf[~i]&255))
+				{ dvz[vcnt] = z0; vt[vcnt] = (q3lf[~i]&255); vcnt++; }
+		}
+		else
+		{
+			j = q3nod[i][0]; z = q3pld[j] - q3pln[j].x*x - q3pln[j].y*y;
+			t = q3pln[j].z*z0-z;
+			if ((t < 0) == (q3pln[j].z*z1 < z))
+				{ vlrec[vlcnt].c = 0; i = q3nod[i][(t<0)+1]; }
+			else
+			{
+				z /= q3pln[j].z; j = (q3pln[j].z<0)+1;
+				vlrec[vlcnt].c = 1; vlrec[vlcnt].i = q3nod[i][j];
+				vlrec[vlcnt].z = z; vlrec[vlcnt].z1 = z1;
+				i = q3nod[i][3-j]; z1 = z;
+			}
+			vlcnt++; continue;
+		}
+		do { vlcnt--; if (vlcnt < 0) return(vcnt); } while (!vlrec[vlcnt].c);
+		vlrec[vlcnt].c = 0; i = vlrec[vlcnt].i;
+		z0 = vlrec[vlcnt].z; z1 = vlrec[vlcnt].z1;
+		vlcnt++;
+	}
+	return(0);
+}
+
+	//Stupidly useless declarations:
+//void delslab(int *b2, int y0, int y1);
+//int *scum2(int x, int y);
+//void scum2finish();
+
+void loadbsp (const char* filnam, dpoint3d* ipo, dpoint3d* ist, dpoint3d* ihe, dpoint3d* ifo)
+{
+	FILE* fp;
+	dpoint3d dp;
+	float f, xof, yof, zof, sc, rsc;
+	int numplanes, numnodes, numleafs;
+	int[17] fpos, flng;
+	int i, x, y, z, z0, z1, vcnt, minx, miny, minz, maxx, maxy, maxz;
+	int* lptr;
+	ubyte* v;
+
+	if (!vbuf) { vbuf = cast(int *)malloc((VOXSIZ>>2)<<2); if (!vbuf) evilquit("vbuf malloc failed"); }
+	if (!vbit) { vbit = cast(int *)malloc((VOXSIZ>>7)<<2); if (!vbit) evilquit("vbuf malloc failed"); }
+
+		//Completely re-compile vbuf
+	v = cast(ubyte *)(&vbuf[1]); //1st dword for voxalloc compare logic optimization
+	for(x=0;x<VSID;x++)
+		for(y=0;y<VSID;y++)
+		{
+			sptr[y*VSID+x] = v; v[0] = 0; v[1] = 0; v[2] = 0; v[3] = 0; v += 4;
+			(*cast(int *)v) = ((x^y)&15)*0x10101+0x807c7c7c; v += 4;
+		}
+
+	memset(&sptr[VSID*VSID],0,sizeof(sptr)-VSID*VSID*4);
+	vbiti = ((cast(int)v-cast(int)vbuf)>>2); //# vbuf longs/vbit bits allocated
+	clearbuf(cast(void *)vbit,vbiti>>5,-1);
+	clearbuf(cast(void *)&vbit[vbiti>>5],(VOXSIZ>>7)-(vbiti>>5),0);
+	vbit[vbiti>>5] = (1<<vbiti)-1;
+
+	if (!kzopen(filnam)) return;
+	kzread(&i,4); if (i != 0x50534249) { kzclose(); return; }
+	kzread(&i,4); if (i != 0x2e) { kzclose(); return; }
+	for(i=0;i<17;i++) { kzread(&fpos[i],4); kzread(&flng[i],4); }
+	kzseek(fpos[2],SEEK_SET); numplanes = flng[2]/16;
+	for(i=0;i<numplanes;i++) { kzread(&q3pln[i].x,12); kzread(&q3pld[i],4); }
+	kzseek(fpos[3],SEEK_SET); numnodes = flng[3]/36;
+	minx = 0x7fffffff; miny = 0x7fffffff; minz = 0x7fffffff;
+	maxx = 0x80000000; maxy = 0x80000000; maxz = 0x80000000;
+	for(i=0;i<numnodes;i++)
+	{
+		kzread(&q3nod[i][0],12);
+		kzread(&x,4); if (x < minx) minx = x;
+		kzread(&x,4); if (x < miny) miny = x;
+		kzread(&x,4); if (x < minz) minz = x;
+		kzread(&x,4); if (x > maxx) maxx = x;
+		kzread(&x,4); if (x > maxy) maxy = x;
+		kzread(&x,4); if (x > maxz) maxz = x;
+	}
+	kzseek(fpos[4]+4,SEEK_SET); numleafs = flng[4]/48;
+	for(i=0;i<numleafs;i++) { kzread(&q3lf[i],4); kzseek(44,SEEK_CUR); }
+	kzclose();
+
+	sc = cast(float)(VSID-2)/cast(float)(maxx-minx);
+	rsc = cast(float)(VSID-2)/cast(float)(maxy-miny); if (rsc < sc) sc = rsc;
+	rsc = cast(float)(MAXZDIM-2)/cast(float)(maxz-minz); if (rsc < sc) sc = rsc;
+	//i = *(long *)sc; i &= 0xff800000; sc = *(float *)i;
+	xof = (-cast(float)(minx+maxx)*sc + VSID   )*.5;
+	yof = (+cast(float)(miny+maxy)*sc + VSID   )*.5;
+	zof = (+cast(float)(minz+maxz)*sc + MAXZDIM)*.5;
+
+	rsc = 1.0 / sc;
+	vx5.colfunc = curcolfunc; //0<x0<x1<VSID, 0<y0<y1<VSID, 0<z0<z1<256,
+	for(y=0;y<VSID;y++)
+		for(x=0;x<VSID;x++)
+		{
+			lptr = scum2(x,y);
+
+				//voxx = q3x*+sc + xof;
+				//voxy = q3y*-sc + yof;
+				//voxz = q3z*-sc + zof;
+			vcnt = vlinebsp((cast(float)x-xof)*rsc,(cast(float)y-yof)*-rsc,-65536.0,65536.0,q3vz);
+			for(i=vcnt-2;i>0;i-=2)
+			{
+				ftol(-q3vz[i+1]*sc+zof,&z0); if (z0 < 0) z0 = 0;
+				ftol(-q3vz[i  ]*sc+zof,&z1); if (z1 > MAXZDIM) z1 = MAXZDIM;
+				delslab(lptr,z0,z1);
+			}
+		}
+	scum2finish();
+
+	vx5.globalmass = calcglobalmass();
+
+		//Find a spot that isn't too close to a wall
+	sc = -1; ipo.x = VSID*.5; ipo.y = VSID*.5; ipo.z = -16;
+	for(i=4096;i>=0;i--)
+	{
+		x = (rand()%VSID); y = (rand()%VSID); z = (rand()%MAXZDIM);
+		if (!isvoxelsolid(x,y,z))
+		{
+			rsc = findmaxcr(cast(double)x+.5,cast(double)y+.5,cast(double)z+.5,5.0);
+			if (rsc <= sc) continue;
+			ipo.x = cast(double)x+.5; ipo.y = cast(double)x+.5; ipo.z = cast(double)x+.5;
+			sc = rsc; if (sc >= 5.0) break;
+		}
+	}
+	f = 0.0*PI/180.0;
+	ist.x = cos(f); ist.y = sin(f); ist.z = 0;
+	ihe.x = 0; ihe.y = 0; ihe.z = 1;
+	ifo.x = sin(f); ifo.y = -cos(f); ifo.z = 0;
+
+	gmipnum = 1; vx5.flstnum = 0;
+	updatebbox(0,0,0,VSID,VSID,MAXZDIM,0);
+}
+
+//Quake3 .BSP loading code ends ----------------------------------------------
+
+int loadvxl (const char* lodfilnam, dpoint3d* ipo, dpoint3d* ist, dpoint3d* ihe, dpoint3d* ifo)
+{
+	FILE* fil;
+	int i, j, fsiz;
+	ubyte* v, v2;
+
+	if (!vbuf) { vbuf = cast(int *)malloc((VOXSIZ>>2)<<2); if (!vbuf) evilquit("vbuf malloc failed"); }
+	if (!vbit) { vbit = cast(int *)malloc((VOXSIZ>>7)<<2); if (!vbit) evilquit("vbuf malloc failed"); }
+
+	if (!kzopen(lodfilnam)) return(0);
+	fsiz = kzfilelength();
+
+	kzread(&i,4); if (i != 0x09072000) return(0);
+	kzread(&i,4); if (i != VSID) return(0);
+	kzread(&i,4); if (i != VSID) return(0);
+	kzread(ipo,24);
+	kzread(ist,24);
+	kzread(ihe,24);
+	kzread(ifo,24);
+
+	v = cast(ubyte *)(&vbuf[1]); //1st dword for voxalloc compare logic optimization
+	kzread(cast(void *)v,fsiz-kztell());
+
+	for(i=0;i<VSID*VSID;i++)
+	{
+		sptr[i] = v;
+		while (v[0]) v += ((cast(int)v[0])<<2);
+		v += (((cast(int)v[2])-(cast(int)v[1])+2)<<2);
+	}
+	kzclose();
+
+	memset(&sptr[VSID*VSID],0,sizeof(sptr)-VSID*VSID*4);
+	vbiti = ((cast(int)v-cast(int)vbuf)>>2); //# vbuf longs/vbit bits allocated
+	clearbuf(cast(void *)vbit,vbiti>>5,-1);
+	clearbuf(cast(void *)&vbit[vbiti>>5],(VOXSIZ>>7)-(vbiti>>5),0);
+	vbit[vbiti>>5] = (1<<vbiti)-1;
+
+	vx5.globalmass = calcglobalmass();
+	backedup = -1;
+
+	gmipnum = 1; vx5.flstnum = 0;
+	updatebbox(0,0,0,VSID,VSID,MAXZDIM,0);
+	return(1);
+}
+
+int savevxl (const char* savfilnam, dpoint3d* ipo, dpoint3d* ist, dpoint3d* ihe, dpoint3d* ifo)
+{
+	FILE *fil;
+	int i;
+
+	if (!(fil = fopen(savfilnam,"wb"))) return(0);
+	i = 0x09072000; fwrite(&i,4,1,fil);  //Version
+	i = VSID; fwrite(&i,4,1,fil);
+	i = VSID; fwrite(&i,4,1,fil);
+	fwrite(ipo,24,1,fil);
+	fwrite(ist,24,1,fil);
+	fwrite(ihe,24,1,fil);
+	fwrite(ifo,24,1,fil);
+	for(i=0;i<VSID*VSID;i++) fwrite(cast(void *)sptr[i],slng(sptr[i]),1,fil);
+	fclose(fil);
+	return(1);
+}
+
+int loadsky (const char* skyfilnam)
+{
+	int x, y, xoff, yoff;
+	float ang, f;
+
+	if (skypic) { free(cast(int *)skypic); skypic = skyoff = 0; }
+	xoff = yoff = 0;
+
+	if (!stricmp(skyfilnam,"BLACK")) return(0);
+	if (!stricmp(skyfilnam,"BLUE")) goto loadbluesky;
+
+	kpzload(skyfilnam,cast(int *)&skypic,cast(int *)&skybpl,cast(int *)&skyxsiz,cast(int *)&skyysiz);
+	if (!skypic)
+	{
+		int r, g, b;
+		int* p;
+loadbluesky:;
+			//Load default sky
+		skyxsiz = 512; skyysiz = 1; skybpl = skyxsiz*4;
+		if (!(skypic = cast(int)malloc(skyysiz*skybpl))) return(-1);
+
+		p = cast(int *)skypic; y = skyxsiz*skyxsiz;
+		for(x=0;x<=(skyxsiz>>1);x++)
+		{
+			p[x] = ((((x*1081 - skyxsiz*252)*x)/y + 35)<<16)+
+					 ((((x* 950 - skyxsiz*198)*x)/y + 53)<<8)+
+					  (((x* 439 - skyxsiz* 21)*x)/y + 98);
+		}
+		p[skyxsiz-1] = 0x50903c;
+		r = ((p[skyxsiz>>1]>>16)&255);
+		g = ((p[skyxsiz>>1]>>8)&255);
+		b = ((p[skyxsiz>>1])&255);
+		for(x=(skyxsiz>>1)+1;x<skyxsiz;x++)
+		{
+			p[x] = ((((0x50-r)*(x-(skyxsiz>>1)))/(skyxsiz-1-(skyxsiz>>1))+r)<<16)+
+					 ((((0x90-g)*(x-(skyxsiz>>1)))/(skyxsiz-1-(skyxsiz>>1))+g)<<8)+
+					 ((((0x3c-b)*(x-(skyxsiz>>1)))/(skyxsiz-1-(skyxsiz>>1))+b));
+		}
+		y = skyxsiz*skyysiz;
+		for(x=skyxsiz;x<y;x++) p[x] = p[x-skyxsiz];
+	}
+
+		//Initialize look-up table for longitudes
+	if (skylng) free(cast(void *)skylng);
+	if (!(skylng = cast(point2d *)malloc(skyysiz*8))) return(-1);
+	f = PI*2.0 / (cast(float)skyysiz);
+	for(y=skyysiz-1;y>=0;y--)
+		fcossin(cast(float)y*f+PI,&skylng[y].x,&skylng[y].y);
+	skylngmul = cast(float)skyysiz/(PI*2);
+		//This makes those while loops in gline() not lockup when skyysiz==1
+	if (skyysiz == 1) { skylng[0].x = 0; skylng[0].y = 0; }
+
+		//Initialize look-up table for latitudes
+	if (skylat) free(cast(void *)skylat);
+	if (!(skylat = cast(int *)malloc(skyxsiz*4))) return(-1);
+	f = PI*.5 / (cast(float)skyxsiz);
+	for(x=skyxsiz-1;x;x--)
+	{
+		ang = cast(float)((x<<1)-skyxsiz)*f;
+		ftol(cos(ang)*32767.0,&xoff);
+		ftol(sin(ang)*32767.0,&yoff);
+		skylat[x] = (xoff<<16)+((-yoff)&65535);
+	}
+	skylat[0] = 0; //Hack to make sure assembly index never goes < 0
+	skyxsiz--; //Hack for assembly code
+
+	return(0);
+}
+
+void orthonormalize (point3d *v0, point3d *v1, point3d *v2)
+{
+	float t;
+
+	t = 1.0 / sqrt((v0.x)*(v0.x) + (v0.y)*(v0.y) + (v0.z)*(v0.z));
+	(v0.x) *= t; (v0.y) *= t; (v0.z) *= t;
+	t = (v1.x)*(v0.x) + (v1.y)*(v0.y) + (v1.z)*(v0.z);
+	(v1.x) -= t*(v0.x); (v1.y) -= t*(v0.y); (v1.z) -= t*(v0.z);
+	t = 1.0 / sqrt((v1.x)*(v1.x) + (v1.y)*(v1.y) + (v1.z)*(v1.z));
+	(v1.x) *= t; (v1.y) *= t; (v1.z) *= t;
+	(v2.x) = (v0.y)*(v1.z) - (v0.z)*(v1.y);
+	(v2.y) = (v0.z)*(v1.x) - (v0.x)*(v1.z);
+	(v2.z) = (v0.x)*(v1.y) - (v0.y)*(v1.x);
+}
+
+void dorthonormalize (dpoint3d *v0, dpoint3d *v1, dpoint3d *v2)
+{
+	double t;
+
+	t = 1.0 / sqrt((v0.x)*(v0.x) + (v0.y)*(v0.y) + (v0.z)*(v0.z));
+	(v0.x) *= t; (v0.y) *= t; (v0.z) *= t;
+	t = (v1.x)*(v0.x) + (v1.y)*(v0.y) + (v1.z)*(v0.z);
+	(v1.x) -= t*(v0.x); (v1.y) -= t*(v0.y); (v1.z) -= t*(v0.z);
+	t = 1.0 / sqrt((v1.x)*(v1.x) + (v1.y)*(v1.y) + (v1.z)*(v1.z));
+	(v1.x) *= t; (v1.y) *= t; (v1.z) *= t;
+	(v2.x) = (v0.y)*(v1.z) - (v0.z)*(v1.y);
+	(v2.y) = (v0.z)*(v1.x) - (v0.x)*(v1.z);
+	(v2.z) = (v0.x)*(v1.y) - (v0.y)*(v1.x);
+}
+
+void orthorotate (float ox, float oy, float oz, point3d *ist, point3d *ihe, point3d *ifo)
+{
+	float f, t, dx, dy, dz;
+	float rr[9];
+
+	fcossin(ox,&ox,&dx);
+	fcossin(oy,&oy,&dy);
+	fcossin(oz,&oz,&dz);
+	f = ox*oz; t = dx*dz; rr[0] =  t*dy + f; rr[7] = -f*dy - t;
+	f = ox*dz; t = dx*oz; rr[1] = -f*dy + t; rr[6] =  t*dy - f;
+	rr[2] = dz*oy; rr[3] = -dx*oy; rr[4] = ox*oy; rr[8] = oz*oy; rr[5] = dy;
+	ox = ist.x; oy = ihe.x; oz = ifo.x;
+	ist.x = ox*rr[0] + oy*rr[3] + oz*rr[6];
+	ihe.x = ox*rr[1] + oy*rr[4] + oz*rr[7];
+	ifo.x = ox*rr[2] + oy*rr[5] + oz*rr[8];
+	ox = ist.y; oy = ihe.y; oz = ifo.y;
+	ist.y = ox*rr[0] + oy*rr[3] + oz*rr[6];
+	ihe.y = ox*rr[1] + oy*rr[4] + oz*rr[7];
+	ifo.y = ox*rr[2] + oy*rr[5] + oz*rr[8];
+	ox = ist.z; oy = ihe.z; oz = ifo.z;
+	ist.z = ox*rr[0] + oy*rr[3] + oz*rr[6];
+	ihe.z = ox*rr[1] + oy*rr[4] + oz*rr[7];
+	ifo.z = ox*rr[2] + oy*rr[5] + oz*rr[8];
+	//orthonormalize(ist,ihe,ifo);
+}
+
+void dorthorotate (double ox, double oy, double oz, dpoint3d *ist, dpoint3d *ihe, dpoint3d *ifo)
+{
+	double f, t, dx, dy, dz;
+	double rr[9];
+
+	dcossin(ox,&ox,&dx);
+	dcossin(oy,&oy,&dy);
+	dcossin(oz,&oz,&dz);
+	f = ox*oz; t = dx*dz; rr[0] =  t*dy + f; rr[7] = -f*dy - t;
+	f = ox*dz; t = dx*oz; rr[1] = -f*dy + t; rr[6] =  t*dy - f;
+	rr[2] = dz*oy; rr[3] = -dx*oy; rr[4] = ox*oy; rr[8] = oz*oy; rr[5] = dy;
+	ox = ist.x; oy = ihe.x; oz = ifo.x;
+	ist.x = ox*rr[0] + oy*rr[3] + oz*rr[6];
+	ihe.x = ox*rr[1] + oy*rr[4] + oz*rr[7];
+	ifo.x = ox*rr[2] + oy*rr[5] + oz*rr[8];
+	ox = ist.y; oy = ihe.y; oz = ifo.y;
+	ist.y = ox*rr[0] + oy*rr[3] + oz*rr[6];
+	ihe.y = ox*rr[1] + oy*rr[4] + oz*rr[7];
+	ifo.y = ox*rr[2] + oy*rr[5] + oz*rr[8];
+	ox = ist.z; oy = ihe.z; oz = ifo.z;
+	ist.z = ox*rr[0] + oy*rr[3] + oz*rr[6];
+	ihe.z = ox*rr[1] + oy*rr[4] + oz*rr[7];
+	ifo.z = ox*rr[2] + oy*rr[5] + oz*rr[8];
+	//dorthonormalize(ist,ihe,ifo);
+}
+
+void axisrotate (point3d *p, point3d *axis, float w)
+{
+	point3d ax;
+	float t, c, s, ox, oy, oz;
+	float k[9];
+
+	fcossin(w,&c,&s);
+	t = axis.x*axis.x + axis.y*axis.y + axis.z*axis.z; if (t == 0) return;
+	t = 1.0 / sqrt(t); ax.x = axis.x*t; ax.y = axis.y*t; ax.z = axis.z*t;
+
+	t = 1.0-c;
+	k[0] = ax.x*t; k[7] = ax.x*s; oz = ax.y*k[0];
+	k[4] = ax.y*t; k[2] = ax.y*s; oy = ax.z*k[0];
+	k[8] = ax.z*t; k[3] = ax.z*s; ox = ax.z*k[4];
+	k[0] = ax.x*k[0] + c; k[5] = ox - k[7]; k[7] += ox;
+	k[4] = ax.y*k[4] + c; k[6] = oy - k[2]; k[2] += oy;
+	k[8] = ax.z*k[8] + c; k[1] = oz - k[3]; k[3] += oz;
+
+	ox = p.x; oy = p.y; oz = p.z;
+	p.x = ox*k[0] + oy*k[1] + oz*k[2];
+	p.y = ox*k[3] + oy*k[4] + oz*k[5];
+	p.z = ox*k[6] + oy*k[7] + oz*k[8];
+}
+
+void slerp (point3d *istr, point3d *ihei, point3d *ifor,
+				point3d *istr2, point3d *ihei2, point3d *ifor2,
+				point3d *ist, point3d *ihe, point3d *ifo, float rat)
+{
+	point3d ax;
+	float c, s, t, ox, oy, oz;
+	float k[9];
+
+	ist.x = istr.x; ist.y = istr.y; ist.z = istr.z;
+	ihe.x = ihei.x; ihe.y = ihei.y; ihe.z = ihei.z;
+	ifo.x = ifor.x; ifo.y = ifor.y; ifo.z = ifor.z;
+
+	ax.x = istr.y*istr2.z - istr.z*istr2.y + ihei.y*ihei2.z - ihei.z*ihei2.y + ifor.y*ifor2.z - ifor.z*ifor2.y;
+	ax.y = istr.z*istr2.x - istr.x*istr2.z + ihei.z*ihei2.x - ihei.x*ihei2.z + ifor.z*ifor2.x - ifor.x*ifor2.z;
+	ax.z = istr.x*istr2.y - istr.y*istr2.x + ihei.x*ihei2.y - ihei.y*ihei2.x + ifor.x*ifor2.y - ifor.y*ifor2.x;
+	t = ax.x*ax.x + ax.y*ax.y + ax.z*ax.z; if (t == 0) return;
+
+		//Based on the vector suck-out method (see ROTATE2.BAS)
+	ox = istr.x*ax.x + istr.y*ax.y + istr.z*ax.z;
+	oy = ihei.x*ax.x + ihei.y*ax.y + ihei.z*ax.z;
+	if (fabs(ox) < fabs(oy))
+		{ c = istr.x*istr2.x + istr.y*istr2.y + istr.z*istr2.z; s = ox*ox; }
+	else
+		{ c = ihei.x*ihei2.x + ihei.y*ihei2.y + ihei.z*ihei2.z; s = oy*oy; }
+	if (t == s) return;
+	c = (c*t - s) / (t-s);
+	if (c < -1) c = -1;
+	if (c > 1) c = 1;
+	fcossin(acos(c)*rat,&c,&s);
+
+	t = 1.0 / sqrt(t); ax.x *= t; ax.y *= t; ax.z *= t;
+
+	t = 1.0f-c;
+	k[0] = ax.x*t; k[7] = ax.x*s; oz = ax.y*k[0];
+	k[4] = ax.y*t; k[2] = ax.y*s; oy = ax.z*k[0];
+	k[8] = ax.z*t; k[3] = ax.z*s; ox = ax.z*k[4];
+	k[0] = ax.x*k[0] + c; k[5] = ox - k[7]; k[7] += ox;
+	k[4] = ax.y*k[4] + c; k[6] = oy - k[2]; k[2] += oy;
+	k[8] = ax.z*k[8] + c; k[1] = oz - k[3]; k[3] += oz;
+
+	ox = ist.x; oy = ist.y; oz = ist.z;
+	ist.x = ox*k[0] + oy*k[1] + oz*k[2];
+	ist.y = ox*k[3] + oy*k[4] + oz*k[5];
+	ist.z = ox*k[6] + oy*k[7] + oz*k[8];
+
+	ox = ihe.x; oy = ihe.y; oz = ihe.z;
+	ihe.x = ox*k[0] + oy*k[1] + oz*k[2];
+	ihe.y = ox*k[3] + oy*k[4] + oz*k[5];
+	ihe.z = ox*k[6] + oy*k[7] + oz*k[8];
+
+	ox = ifo.x; oy = ifo.y; oz = ifo.z;
+	ifo.x = ox*k[0] + oy*k[1] + oz*k[2];
+	ifo.y = ox*k[3] + oy*k[4] + oz*k[5];
+	ifo.z = ox*k[6] + oy*k[7] + oz*k[8];
+}
+
+void expandrle (int x, int y, int *uind)
+{
+	int i;
+	ubyte *v;
+
+	if ((x|y)&(~(VSID-1))) { uind[0] = 0; uind[1] = MAXZDIM; return; }
+
+	v = sptr[y*VSID+x]; uind[0] = v[1]; i = 2;
+	while (v[0])
+	{
+		v += v[0]*4; if (v[3] >= v[1]) continue;
+		uind[i-1] = v[3]; uind[i] = v[1]; i += 2;
+	}
+	uind[i-1] = MAXZDIM;
+}
+
+/**
+*	Inputs:  n0[<=MAXZDIM]: rle buffer of column to compress
+*	         n1-4[<=MAXZDIM]: neighboring rle buffers
+*	         top,bot,top,bot,... (ends when bot == MAXZDIM)
+*	         px,py: takes color from original column (before modification)
+*	            If originally unexposed, calls vx5.colfunc(.)
+*	Outputs: cbuf[MAXCSIZ]: compressed output buffer
+*	Returns: n: length of compressed buffer (in bytes)
+*/
+int compilerle (int *n0, int *n1, int *n2, int *n3, int *n4, ubyte *cbuf, int px, int py)
+{
+	int i, ia, ze, zend, onext, dacnt, n;
+	int* ic;
+	lpoint3d p;
+	ubyte *v;
+
+	p.x = px; p.y = py;
+
+		//Generate pointers to color slabs in this format:
+		//   0:z0,  1:z1,  2:(pointer to z0's color)-z0
+	v = sptr[py*VSID+px]; ic = tbuf2;
+	while (true)
+	{
+		ia = v[1]; p.z = v[2];
+		ic[0] = ia; ic[1] = p.z+1; ic[2] = (cast(int)v)-(ia<<2)+4; ic += 3;
+		i = v[0]; if (!i) break;
+		v += i*4; ze = v[3];
+		ic[0] = ze+p.z-ia-i+2; ic[1] = ze; ic[2] = (cast(int)v)-(ze<<2); ic += 3;
+	}
+	ic[0] = MAXZDIM; ic[1] = MAXZDIM;
+
+	p.z = n0[0]; cbuf[1] = n0[0];
+	ze = n0[1]; cbuf[2] = ze-1;
+	cbuf[3] = 0;
+	i = onext = 0; ic = tbuf2; ia = 15; n = 4;
+	if (ze != MAXZDIM) zend = ze-1; else zend = -1;
+	while (true)
+	{
+		dacnt = 0;
+		while (true)
+		{
+			do
+			{
+				while (p.z >= ic[1]) ic += 3;
+				if (p.z >= ic[0]) *cast(int *)&cbuf[n] = *cast(int *)(ic[2]+(p.z<<2));
+								 else *cast(int *)&cbuf[n] = vx5.colfunc(&p);
+				n += 4; p.z++; if (p.z >= ze) goto rlendit2;
+				while (p.z >= n1[0]) { n1++; ia ^= 1; }
+				while (p.z >= n2[0]) { n2++; ia ^= 2; }
+				while (p.z >= n3[0]) { n3++; ia ^= 4; }
+				while (p.z >= n4[0]) { n4++; ia ^= 8; }
+			} while ((ia) || (p.z == zend));
+
+			if (!dacnt) { cbuf[onext+2] = p.z-1; dacnt = 1; }
+			else
+			{
+				cbuf[onext] = ((n-onext)>>2); onext = n;
+				cbuf[n+1] = p.z; cbuf[n+2] = p.z-1; cbuf[n+3] = p.z; n += 4;
+			}
+
+			if ((n1[0] < n2[0]) && (n1[0] < n3[0]) && (n1[0] < n4[0]))
+				{ if (n1[0] >= ze) { p.z = ze-1; } else { p.z = *n1++; ia ^= 1; } }
+			else if ((n2[0] < n3[0]) && (n2[0] < n4[0]))
+				{ if (n2[0] >= ze) { p.z = ze-1; } else { p.z = *n2++; ia ^= 2; } }
+			else if (n3[0] < n4[0])
+				{ if (n3[0] >= ze) { p.z = ze-1; } else { p.z = *n3++; ia ^= 4; } }
+			else
+				{ if (n4[0] >= ze) { p.z = ze-1; } else { p.z = *n4++; ia ^= 8; } }
+
+			if (p.z == MAXZDIM-1) goto rlenditall;
+		}
+rlendit2:;
+		if (ze >= MAXZDIM) break;
+
+		i += 2;
+		cbuf[onext] = ((n-onext)>>2); onext = n;
+		p.z = n0[i]; cbuf[n+1] = n0[i]; cbuf[n+3] = ze;
+		ze = n0[i+1]; cbuf[n+2] = ze-1;
+		n += 4;
+	}
+rlenditall:;
+	cbuf[onext] = 0;
+	return(n);
+}
+
+	//Delete everything on b2() in y0<=y<y1
+void delslab (int *b2, int y0, int y1)
+{
+	int i, j, z;
+
+	if (y1 >= MAXZDIM) y1 = MAXZDIM-1;
+	if ((y0 >= y1) || (!b2)) return;
+	for(z=0;y0>=b2[z+1];z+=2) {}
+	if (y0 > b2[z])
+	{
+		if (y1 < b2[z+1])
+		{
+			for(i=z;b2[i+1]<MAXZDIM;i+=2) {}
+			while (i > z) { b2[i+3] = b2[i+1]; b2[i+2] = b2[i]; i -= 2; }
+			b2[z+3] = b2[z+1]; b2[z+1] = y0; b2[z+2] = y1; return;
+		}
+		b2[z+1] = y0; z += 2;
+	}
+	if (y1 >= b2[z+1])
+	{
+		for(i=z+2;y1>=b2[i+1];i+=2) {}
+		j = z-i; b2[z] = b2[i]; b2[z+1] = b2[i+1];
+		while (b2[i+1] < MAXZDIM)
+			{ i += 2; b2[i+j] = b2[i]; b2[i+j+1] = b2[i+1]; }
+	}
+	if (y1 > b2[z]) b2[z] = y1;
+}
+
+	//Insert everything on b2() in y0<=y<y1
+void insslab (int *b2, int y0, int y1)
+{
+	int i, j, z;
+
+	if ((y0 >= y1) || (!b2)) return;
+	for(z=0;y0>b2[z+1];z+=2) {}
+	if (y1 < b2[z])
+	{
+		for(i=z;b2[i+1]<MAXZDIM;i+=2){}
+		do { b2[i+3] = b2[i+1]; b2[i+2] = b2[i]; i -= 2; } while (i >= z);
+		b2[z+1] = y1; b2[z] = y0; return;
+	}
+	if (y0 < b2[z]) b2[z] = y0;
+	if ((y1 >= b2[z+2]) && (b2[z+1] < MAXZDIM))
+	{
+		for(i=z+2;(y1 >= b2[i+2]) && (b2[i+1] < MAXZDIM);i+=2) {}
+		j = z-i; b2[z+1] = b2[i+1];
+		while (b2[i+1] < MAXZDIM)
+			{ i += 2; b2[i+j] = b2[i]; b2[i+j+1] = b2[i+1]; }
+	}
+	if (y1 > b2[z+1]) b2[z+1] = y1;
+}
+
+//------------------------ SETCOLUMN CODE BEGINS ----------------------------
+
+static int scx0, scx1, scox0, scox1, scoox0, scoox1;
+static int scex0, scex1, sceox0, sceox1, scoy = 0x80000000; 
+static int* scoym3;
+
+void scumline ()
+{
+	int i, j, k, x, y, x0, x1;
+	int* mptr, uptr;
+	ubyte* v;
+
+	x0 = min(scox0-1,min(scx0,scoox0)); scoox0 = scox0; scox0 = scx0;
+	x1 = max(scox1+1,max(scx1,scoox1)); scoox1 = scox1; scox1 = scx1;
+
+	uptr = &scoym3[SCPITCH]; if (uptr == &radar[SCPITCH*9]) uptr = &radar[SCPITCH*6];
+	mptr = &uptr[SCPITCH];   if (mptr == &radar[SCPITCH*9]) mptr = &radar[SCPITCH*6];
+
+	if ((x1 < sceox0) || (x0 > sceox1))
+	{
+		for(x=x0;x<=x1;x++) expandstack(x,scoy-2,&uptr[x*SCPITCH*3]);
+	}
+	else
+	{
+		for(x=x0;x<sceox0;x++) expandstack(x,scoy-2,&uptr[x*SCPITCH*3]);
+		for(x=x1;x>sceox1;x--) expandstack(x,scoy-2,&uptr[x*SCPITCH*3]);
+	}
+
+	if ((scex1|x1) >= 0)
+	{
+		for(x=x1+2;x<scex0;x++) expandstack(x,scoy-1,&mptr[x*SCPITCH*3]);
+		for(x=x0-2;x>scex1;x--) expandstack(x,scoy-1,&mptr[x*SCPITCH*3]);
+	}
+	if ((x1+1 < scex0) || (x0-1 > scex1))
+	{
+		for(x=x0-1;x<=x1+1;x++) expandstack(x,scoy-1,&mptr[x*SCPITCH*3]);
+	}
+	else
+	{
+		for(x=x0-1;x<scex0;x++) expandstack(x,scoy-1,&mptr[x*SCPITCH*3]);
+		for(x=x1+1;x>scex1;x--) expandstack(x,scoy-1,&mptr[x*SCPITCH*3]);
+	}
+	sceox0 = min(x0-1,scex0);
+	sceox1 = max(x1+1,scex1);
+
+	if ((x1 < scx0) || (x0 > scx1))
+	{
+		for(x=x0;x<=x1;x++) expandstack(x,scoy,&scoym3[x*SCPITCH*3]);
+	}
+	else
+	{
+		for(x=x0;x<scx0;x++) expandstack(x,scoy,&scoym3[x*SCPITCH*3]);
+		for(x=x1;x>scx1;x--) expandstack(x,scoy,&scoym3[x*SCPITCH*3]);
+	}
+	scex0 = x0;
+	scex1 = x1;
+
+	y = scoy-1; if (y&(~(VSID-1))) return;
+	if (x0 < 0) x0 = 0;
+	if (x1 >= VSID) x1 = VSID-1;
+	i = y*VSID+x0; k = x0*SCPITCH*3;
+	for(x=x0;x<=x1;x++,i++,k+=SCPITCH*3)
+	{
+		v = sptr[i]; vx5.globalmass += v[1];
+		while (v[0]) { v += v[0]*4; vx5.globalmass += v[1]-v[3]; }
+
+			//De-allocate column (x,y)
+		voxdealloc(sptr[i]);
+
+		j = compilestack(&mptr[k],&mptr[k-SCPITCH*3],&mptr[k+SCPITCH*3],&uptr[k],&scoym3[k],
+							  tbuf,x,y);
+
+			//Allocate & copy to new column (x,y)
+		sptr[i] = v = voxalloc(j); copybuf(cast(void *)tbuf.ptr,cast(void *)v,j>>2);
+
+		vx5.globalmass -= v[1];
+		while (v[0]) { v += v[0]*4; vx5.globalmass += v[3]-v[1]; }
+	}
+}
+
+/**
+*	x: x on voxel map
+*	y: y on voxel map
+*	z0: highest z on column
+*	z1: lowest z(+1) on column
+*	nbuf: buffer of color data from nbuf[z0] to nbuf[z1-1];
+*	           -3: don't modify voxel
+*	           -2: solid voxel (unexposed): to be calculated in compilestack
+*	           -1: write air voxel
+*	   0-16777215: write solid voxel (exposed)
+*
+*	Example of how to use this code:
+*	vx5.colfunc = curcolfunc; //0 < x0 < x1 < VSID, 0 < y0 < y1< VSID, 0 < z0 < z1 < 256,
+*	clearbuf((void *)&templongbuf[z0],z1-z0,-1); //Ex: set all voxels to air
+*	for(y=y0;y < y1;y++) //MUST iterate x&y in this order, but can skip around
+*	   for(x=x0;x < x1;x++)
+*	      if (rand()&8) scum(x,y,z0,z1,templongbuf));
+*	scumfinish(); //MUST call this when done!
+*/	
+void scum (int x, int y, int z0, int z1, int *nbuf)
+{
+	int z; 
+	int* mptr;
+
+	if ((x|y)&(~(VSID-1))) return;
+
+	if (y != scoy)
+	{
+		if (scoy >= 0)
+		{
+			scumline();
+			while (scoy < y-1)
+			{
+				scx0 = 0x7fffffff; scx1 = 0x80000000;
+				scoy++; scoym3 += SCPITCH; if (scoym3 == &radar[SCPITCH*9]) scoym3 = &radar[SCPITCH*6];
+				scumline();
+			}
+			scoy++; scoym3 += SCPITCH; if (scoym3 == &radar[SCPITCH*9]) scoym3 = &radar[SCPITCH*6];
+		}
+		else
+		{
+			scoox0 = scox0 = 0x7fffffff;
+			sceox0 = scex0 = x+1;
+			sceox1 = scex1 = x;
+			scoy = y; scoym3 = &radar[SCPITCH*6];
+		}
+		scx0 = x;
+	}
+	else
+	{
+		while (scx1 < x-1) { scx1++; expandstack(scx1,y,&scoym3[scx1*SCPITCH*3]); }
+	}
+
+	mptr = &scoym3[x*SCPITCH*3]; scx1 = x; expandstack(x,y,mptr);
+
+		//Modify column (x,y):
+	if (nbuf[MAXZDIM-1] == -1) nbuf[MAXZDIM-1] = -2; //Bottom voxel must be solid
+	for(z=z0;z<z1;z++)
+		if (nbuf[z] != -3) mptr[z] = nbuf[z];
+}
+
+void scumfinish ()
+{
+	int i;
+
+	if (scoy == 0x80000000) return;
+	for(i=2;i;i--)
+	{
+		scumline(); scx0 = 0x7fffffff; scx1 = 0x80000000;
+		scoy++; scoym3 += SCPITCH; if (scoym3 == &radar[SCPITCH*9]) scoym3 = &radar[SCPITCH*6];
+	}
+	scumline(); scoy = 0x80000000;
+}
+
+void scum2line ()
+{
+	int i, j, k, x, y, x0, x1;
+	int* mptr, uptr;
+	ubyte* v;
+
+	x0 = min(scox0-1,min(scx0,scoox0)); scoox0 = scox0; scox0 = scx0;
+	x1 = max(scox1+1,max(scx1,scoox1)); scoox1 = scox1; scox1 = scx1;
+
+	uptr = &scoym3[SCPITCH]; if (uptr == &radar[SCPITCH*9]) uptr = &radar[SCPITCH*6];
+	mptr = &uptr[SCPITCH];   if (mptr == &radar[SCPITCH*9]) mptr = &radar[SCPITCH*6];
+
+	if ((x1 < sceox0) || (x0 > sceox1))
+	{
+		for(x=x0;x<=x1;x++) expandrle(x,scoy-2,&uptr[x*SCPITCH*3]);
+	}
+	else
+	{
+		for(x=x0;x<sceox0;x++) expandrle(x,scoy-2,&uptr[x*SCPITCH*3]);
+		for(x=x1;x>sceox1;x--) expandrle(x,scoy-2,&uptr[x*SCPITCH*3]);
+	}
+
+	if ((scex1|x1) >= 0)
+	{
+		for(x=x1+2;x<scex0;x++) expandrle(x,scoy-1,&mptr[x*SCPITCH*3]);
+		for(x=x0-2;x>scex1;x--) expandrle(x,scoy-1,&mptr[x*SCPITCH*3]);
+	}
+	if ((x1+1 < scex0) || (x0-1 > scex1))
+	{
+		for(x=x0-1;x<=x1+1;x++) expandrle(x,scoy-1,&mptr[x*SCPITCH*3]);
+	}
+	else
+	{
+		for(x=x0-1;x<scex0;x++) expandrle(x,scoy-1,&mptr[x*SCPITCH*3]);
+		for(x=x1+1;x>scex1;x--) expandrle(x,scoy-1,&mptr[x*SCPITCH*3]);
+	}
+	sceox0 = min(x0-1,scex0);
+	sceox1 = max(x1+1,scex1);
+
+	if ((x1 < scx0) || (x0 > scx1))
+	{
+		for(x=x0;x<=x1;x++) expandrle(x,scoy,&scoym3[x*SCPITCH*3]);
+	}
+	else
+	{
+		for(x=x0;x<scx0;x++) expandrle(x,scoy,&scoym3[x*SCPITCH*3]);
+		for(x=x1;x>scx1;x--) expandrle(x,scoy,&scoym3[x*SCPITCH*3]);
+	}
+	scex0 = x0;
+	scex1 = x1;
+
+	y = scoy-1; if (y&(~(VSID-1))) return;
+	if (x0 < 0) x0 = 0;
+	if (x1 >= VSID) x1 = VSID-1;
+	i = y*VSID+x0; k = x0*SCPITCH*3;
+	for(x=x0;x<=x1;x++,i++,k+=SCPITCH*3)
+	{
+		j = compilerle(&mptr[k],&mptr[k-SCPITCH*3],&mptr[k+SCPITCH*3],&uptr[k],&scoym3[k],
+							tbuf,x,y);
+
+		v = sptr[i]; vx5.globalmass += v[1];
+		while (v[0]) { v += v[0]*4; vx5.globalmass += v[1]-v[3]; }
+
+			//De-allocate column (x,y)  Note: Must be AFTER compilerle!
+		voxdealloc(sptr[i]);
+
+			//Allocate & copy to new column (x,y)
+		sptr[i] = v = voxalloc(j); copybuf(cast(void *)tbuf.ptr,cast(void *)v,j>>2);
+
+		vx5.globalmass -= v[1];
+		while (v[0]) { v += v[0]*4; vx5.globalmass += v[3]-v[1]; }
+	}
+}
+
+/**
+*	x: x on voxel map
+*	y: y on voxel map
+*	Returns pointer to rle column (x,y)
+*/
+int* scum2 (int x, int y)
+{
+	int *mptr;
+
+	if ((x|y)&(~(VSID-1))) return(0);
+
+	if (y != scoy)
+	{
+		if (scoy >= 0)
+		{
+			scum2line();
+			while (scoy < y-1)
+			{
+				scx0 = 0x7fffffff; scx1 = 0x80000000;
+				scoy++; scoym3 += SCPITCH; if (scoym3 == &radar[SCPITCH*9]) scoym3 = &radar[SCPITCH*6];
+				scum2line();
+			}
+			scoy++; scoym3 += SCPITCH; if (scoym3 == &radar[SCPITCH*9]) scoym3 = &radar[SCPITCH*6];
+		}
+		else
+		{
+			scoox0 = scox0 = 0x7fffffff;
+			sceox0 = scex0 = x+1;
+			sceox1 = scex1 = x;
+			scoy = y; scoym3 = &radar[SCPITCH*6];
+		}
+		scx0 = x;
+	}
+	else
+	{
+		while (scx1 < x-1) { scx1++; expandrle(scx1,y,&scoym3[scx1*SCPITCH*3]); }
+	}
+
+	mptr = &scoym3[x*SCPITCH*3]; scx1 = x; expandrle(x,y,mptr);
+	return(mptr);
+}
+
+void scum2finish ()
+{
+	int i;
+
+	if (scoy == 0x80000000) return;
+	for(i=2;i;i--)
+	{
+		scum2line(); scx0 = 0x7fffffff; scx1 = 0x80000000;
+		scoy++; scoym3 += SCPITCH; if (scoym3 == &radar[SCPITCH*9]) scoym3 = &radar[SCPITCH*6];
+	}
+	scum2line(); scoy = 0x80000000;
+}
+
+//------------------- editing backup / restore begins ------------------------
+
+void voxdontrestore ()
+{
+	int i;
+
+	if (backedup == 1)
+	{
+		for(i=(bacx1-bacx0)*(bacy1-bacy0)-1;i>=0;i--) voxdealloc(bacsptr[i]);
+	}
+	backedup = -1;
+}
+
+void voxrestore ()
+{
+	int i, j, x, y;
+	ubyte* v, daptr;
+
+	if (backedup == 1)
+	{
+		i = 0;
+		for(y=bacy0;y<bacy1;y++)
+		{
+			j = y*VSID;
+			for(x=bacx0;x<bacx1;x++)
+			{
+				v = sptr[j+x]; vx5.globalmass += v[1];
+				while (v[0]) { v += v[0]*4; vx5.globalmass += v[1]-v[3]; }
+
+				voxdealloc(sptr[j+x]);
+				sptr[j+x] = bacsptr[i]; i++;
+
+				v = sptr[j+x]; vx5.globalmass -= v[1];
+				while (v[0]) { v += v[0]*4; vx5.globalmass += v[3]-v[1]; }
+			}
+		}
+		if (vx5.vxlmipuse > 1) genmipvxl(bacx0,bacy0,bacx1,bacy1);
+	}
+	else if (backedup == 2)
+	{
+		daptr = cast(ubyte *)bacsptr;
+		for(y=bacy0;y<bacy1;y++)
+		{
+			j = y*VSID;
+			for(x=bacx0;x<bacx1;x++)
+			{
+				for(v=sptr[j+x];v[0];v+=v[0]*4)
+					for(i=1;i<v[0];i++) v[(i<<2)+3] = *daptr++;
+				for(i=1;i<=v[2]-v[1]+1;i++) v[(i<<2)+3] = *daptr++;
+			}
+		}
+		if (vx5.vxlmipuse > 1) genmipvxl(bacx0,bacy0,bacx1,bacy1);
+	}
+	backedup = -1;
+}
+
+void voxbackup (int x0, int y0, int x1, int y1, int tag)
+{
+	int i, j, n, x, y;
+	ubyte* v, daptr;
+
+	voxdontrestore();
+
+	x0 = max(x0-2,0); y0 = max(y0-2,0);
+	x1 = min(x1+2,VSID); y1 = min(y1+2,VSID);
+	if ((x1-x0)*(y1-y0) > 262144) return;
+
+	bacx0 = x0; bacy0 = y0; bacx1 = x1; bacy1 = y1; backtag = tag;
+
+	if (tag&0x10000)
+	{
+		backedup = 1;
+		i = 0;
+		for(y=bacy0;y<bacy1;y++)
+		{
+			j = y*VSID;
+			for(x=bacx0;x<bacx1;x++)
+			{
+				bacsptr[i] = v = sptr[j+x]; i++;
+				n = slng(v); sptr[j+x] = voxalloc(n);
+
+				copybuf(cast(void *)v,cast(void *)sptr[j+x],n>>2);
+			}
+		}
+	}
+	else if (tag&0x20000)
+	{
+		backedup = 2;
+			//WARNING!!! Right now, function will crash if saving more than
+			//   1<<20 colors :( This needs to be addressed!!!
+		daptr = cast(ubyte *)bacsptr;
+		for(y=bacy0;y<bacy1;y++)
+		{
+			j = y*VSID;
+			for(x=bacx0;x<bacx1;x++)
+			{
+				for(v=sptr[j+x];v[0];v+=v[0]*4)
+					for(i=1;i<v[0];i++) *daptr++ = v[(i<<2)+3];
+				for(i=1;i<=v[2]-v[1]+1;i++) *daptr++ = v[(i<<2)+3];
+			}
+		}
+	}
+	else backedup = 0;
+}
+
+//-------------------- editing backup / restore ends -------------------------
+
+/**
+*	WARNING! Make sure to set vx5.colfunc before calling this function!
+*	This function is here for simplicity only - it is NOT optimal.
+*	
+*	   -1: set air
+*	   -2: use vx5.colfunc
+*/
+void setcube (int px, int py, int pz, int col)
+{
+	int bakcol;
+	alias int function(lpoint3d*) da_bakcolfunc;
+	da_bakcolfunc bakcolfunc;
+	int *lptr;
+
+	vx5.minx = px; vx5.maxx = px+1;
+	vx5.miny = py; vx5.maxy = py+1;
+	vx5.minz = pz; vx5.maxz = pz+1;
+	if (cast(uint)pz >= MAXZDIM) return;
+	if (cast(uint)col >= cast(uint)0xfffffffe) //-1 or -2
+	{
+		lptr = scum2(px,py);
+		if (col == -1) delslab(lptr,pz,pz+1); else insslab(lptr,pz,pz+1);
+		scum2finish();
+		updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,col);
+		return;
+	}
+
+	bakcol = getcube(px,py,pz);
+	if (bakcol == 1) return; //Unexposed solid
+	if (bakcol != 0) //Not 0 (air)
+		*cast(int *)bakcol = col;
+	else
+	{
+		bakcolfunc = vx5.colfunc; bakcol = vx5.curcol;
+		vx5.colfunc = curcolfunc; vx5.curcol = col;
+		insslab(scum2(px,py),pz,pz+1); scum2finish();
+		vx5.colfunc = bakcolfunc; vx5.curcol = bakcol;
+	}
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,0);
+}
+
+//-------------------------- SETCOLUMN CODE ENDS ----------------------------
+static long qmulmip[8] =
+[
+	0x7fff7fff7fff7fff,0x4000400040004000,0x2aaa2aaa2aaa2aaa,0x2000200020002000,
+	0x1999199919991999,0x1555155515551555,0x1249124912491249,0x1000100010001000
+];
+static int mixc[MAXZDIM>>1][8]; //4K
+static int mixn[MAXZDIM>>1];    //0.5K
+void genmipvxl (int x0, int y0, int x1, int y1)
+{
+	int i, n, oldn, x, y, z, xsiz, ysiz, zsiz, oxsiz, oysiz;
+	int cz, oz, nz, zz, besti, cstat, mipnum, mipmax;
+	int curz[4];
+	int curzn[4][4];
+	ubyte* v[4];
+	ubyte* tv;
+	ubyte** sr, sw, ssr, ssw;
+
+	if ((!(x0|y0)) && (x1 == VSID) && (y1 == VSID)) mipmax = vx5.vxlmipuse;
+															 else mipmax = gmipnum;
+	if (mipmax <= 0) return;
+	mipnum = 1;
+
+	vx5.colfunc = curcolfunc;
+	xsiz = VSID; ysiz = VSID; zsiz = MAXZDIM;
+	ssr = sptr; ssw = sptr+xsiz*ysiz;
+	while ((xsiz > 1) && (ysiz > 1) && (zsiz > 1) && (mipnum < mipmax))
+	{
+		oxsiz = xsiz; xsiz >>= 1;
+		oysiz = ysiz; ysiz >>= 1;
+						  zsiz >>= 1;
+
+		x0--; if (x0 < 0) x0 = 0;
+		y0--; if (y0 < 0) y0 = 0;
+		x1++; if (x1 > VSID) x1 = VSID;
+		y1++; if (y1 > VSID) y1 = VSID;
+
+		x0 >>= 1; x1 = ((x1+1)>>1);
+		y0 >>= 1; y1 = ((y1+1)>>1);
+		for(y=y0;y<y1;y++)
+		{
+			sr = ssr+oxsiz*(y<<1)+(x0<<1);
+			sw = ssw+xsiz*y+x0;
+			for(x=x0;x<x1;x++)
+			{
+					//ÚÄÄÄÂÄÄÄÂÄÄÄÂÄÄÄ¿
+					//³npt³z1 ³z1c³dum³
+					//³ b ³ g ³ r ³ i ³
+					//³ b ³ g ³ r ³ i ³
+					//³npt³z1 ³z1c³z0 ³
+					//³ b ³ g ³ r ³ i ³
+					//ÀÄÄÄÁÄÄÄÁÄÄÄÁÄÄÄÙ
+				v[0] = sr[      0];
+				v[1] = sr[      1];
+				v[2] = sr[oysiz  ];
+				v[3] = sr[oysiz+1];
+				for(i=3;i>=0;i--)
+				{
+					curz[i] = curzn[i][0] = cast(int)v[i][1];
+					curzn[i][1] = (cast(int)v[i][2])+1;
+
+					tv = v[i];
+					while (1)
+					{
+						oz = cast(int)tv[1];
+						for(z=oz;z<=(cast(int)tv[2]);z++)
+						{
+							nz = (z>>1);
+							mixc[nz][mixn[nz]++] = *cast(int *)(&tv[((z-oz)<<2)+4]);
+						}
+						z = (z-oz) - ((cast(int)tv[0])-1);
+						if (!tv[0]) break;
+						tv += ((cast(int)tv[0])<<2);
+						oz = cast(int)tv[3];
+						for(;z<0;z++)
+						{
+							nz = ((z+oz)>>1);
+							mixc[nz][mixn[nz]++] = *cast(int *)(&tv[z<<2]);
+						}
+					}
+				}
+				cstat = 0; oldn = 0; n = 4; tbuf[3] = 0; z = 0x80000000;
+				while (true)
+				{
+					oz = z;
+
+						//z,besti = min,argmin(curz[0],curz[1],curz[2],curz[3])
+					besti = ((cast(uint)(curz[1]-curz[    0]))>>31);
+						 i = ((cast(uint)(curz[3]-curz[    2]))>>31)+2;
+					besti +=(((cast(int)(curz[i]-curz[besti]))>>31)&(i-besti));
+					z = curz[besti]; if (z >= MAXZDIM) break;
+
+					if ((!cstat) && ((z>>1) >= ((oz+1)>>1)))
+					{
+						if (oz >= 0)
+						{
+							tbuf[oldn] = ((n-oldn)>>2);
+							tbuf[oldn+2]--;
+							tbuf[n+3] = ((oz+1)>>1);
+							oldn = n; n += 4;
+						}
+						tbuf[oldn] = 0;
+						tbuf[oldn+1] = tbuf[oldn+2] = (z>>1); cz = -1;
+					}
+					if (cstat&0x1111)
+					{
+						if ((((cast(int)tbuf[oldn+2])<<1)+1 >= oz) && (cz < 0))
+						{
+							while (((cast(int)tbuf[oldn+2])<<1) < z)
+							{
+								zz = cast(int)tbuf[oldn+2];
+
+								asm //*cast(int *)&tbuf[n] = mixc[zz][rand()%mixn[zz]];
+								{    //mixn[zz] = 0;
+									mov EAX, zz;
+									mov ECX, mixn[EAX*4];
+									mov mixn[EAX*4], 0;
+									shl EAX, 5;
+									pxor MM0, MM0;
+									movq MM2, qmulmip[ECX*8-8];
+									pcmpeqb MM6, MM6;
+									movq MM7, MM0;
+					 				
+					 				vxlmipbeg0:
+					 				movd MM1, mixc[EAX+ECX*4-4];
+									punpcklbw MM1, MM7;
+									paddw MM0, MM1;
+									dec ECX;
+									jnz short vxlmipbeg0;
+									paddw MM0, MM0;
+									psubw MM0, MM6; //rounding bias
+									pmulhw MM0, MM2;
+									packuswb MM0, MM0;
+									mov EAX, n;
+									movd tbuf[EAX], MM0;
+								}
+
+								tbuf[oldn+2]++; n += 4;
+							}
+						}
+						else
+						{
+							if (cz < 0) cz = (oz>>1);
+							else if ((cz<<1)+1 < oz)
+							{
+									//Insert fake slab
+								tbuf[oldn] = ((n-oldn)>>2);
+								tbuf[oldn+2]--;
+								tbuf[n] = 0;
+								tbuf[n+1] = tbuf[n+2] = tbuf[n+3] = cz;
+								oldn = n; n += 4;
+								cz = (oz>>1);
+							}
+							while ((cz<<1) < z)
+							{
+								asm //*cast(int *)&tbuf[n] = mixc[cz][rand()%mixn[cz]];
+								{    //mixn[cz] = 0;
+									mov EAX, cz;
+									mov ECX, mixn[EAX*4];
+									mov mixn[EAX*4], 0;
+									shl EAX, 5;
+									pxor MM0, MM0;
+									movq MM2, qmulmip[ECX*8-8];
+									pcmpeqb MM6, MM6;
+									movq MM7, MM0;
+
+					 				vxlmipbeg1:
+					 				movd MM1, mixc[EAX+ECX*4-4];
+									punpcklbw MM1, MM7;
+									paddw MM0, MM1;
+									dec ECX;
+									jnz short vxlmipbeg1;
+									paddw MM0, MM0;
+									psubw MM0, MM6; //rounding bias
+									pmulhw MM0, MM2;
+									packuswb MM0, MM0;
+									mov EAX, n;
+									movd tbuf[EAX], MM0;
+								}
+
+								cz++; n += 4;
+							}
+						}
+					}
+
+					i = (besti<<2);
+					cstat = (((1<<i)+cstat)&0x3333); //--33--22--11--00
+					switch ((cstat>>i)&3)
+					{
+						case 0: curz[besti] = curzn[besti][0]; break;
+						case 1: curz[besti] = curzn[besti][1]; break;
+						case 2:
+							if (!(v[besti][0])) { curz[besti] = MAXZDIM; }
+							else
+							{
+								tv = v[besti]; i = ((cast(int)tv[2])-(cast(int)tv[1])+1)-((cast(int)tv[0])-1);
+								tv += ((cast(int)tv[0])<<2);
+								curz[besti] = (cast(int)(tv[3])) + i;
+								curzn[besti][3] = cast(int)(tv[3]);
+								curzn[besti][0] = cast(int)(tv[1]);
+								curzn[besti][1] = (cast(int)tv[2])+1;
+								v[besti] = tv;
+							}
+							break;
+						case 3: curz[besti] = curzn[besti][3]; break;
+						//default: __assume(0); //tells MSVC default can't be reached
+					}
+				}
+				tbuf[oldn+2]--;
+				if (cz >= 0)
+				{
+					tbuf[oldn] = ((n-oldn)>>2);
+					tbuf[n] = 0;
+					tbuf[n+1] = tbuf[n+3] = cz;
+					tbuf[n+2] = cz-1;
+					n += 4;
+				}
+
+					//De-allocate column (x,y) if it exists
+				if (sw[0]) voxdealloc(sw[0]);
+
+					//Allocate & copy to new column (x,y)
+				sw[0] = voxalloc(n);
+				copybuf(cast(void *)tbuf.ptr,cast(void *)sw[0],n>>2);
+				sw++; sr += 2;
+			}
+			sr += ysiz*2;
+		}
+		ssr = ssw; ssw += xsiz*ysiz;
+		mipnum++; if (mipnum > gmipnum) gmipnum = mipnum;
+	}
+
+		//Remove extra mips (bbox must be 0,0,VSID,VSID to get inside this)
+	while ((xsiz > 1) && (ysiz > 1) && (zsiz > 1) && (mipnum < gmipnum))
+	{
+		xsiz >>= 1; ysiz >>= 1; zsiz >>= 1;
+		for(i=xsiz*ysiz;i>0;i--)
+		{
+			if (ssw[0]) voxdealloc(ssw[0]); //De-allocate column if it exists
+			ssw++;
+		}
+		gmipnum--;
+	}
+
+	asm {emms;}
+
+	static if(false) //TEMP HACK!!!
+	{
+		{
+			FILE *fil;
+			dpoint3d dp;
+			if (!(fil = fopen("temp512.vxl","wb"))) return;
+			i = 0x09072000; fwrite(&i,4,1,fil);  //Version
+			i = (VSID>>1); fwrite(&i,4,1,fil);
+			i = (VSID>>1); fwrite(&i,4,1,fil);
+			dp.x = cast(double)i*.5; dp.y = cast(double)i*.5; dp.z = cast(double)i*.5;
+			fwrite(&dp,24,1,fil);
+			dp.x = 1.0; dp.y = 0.0; dp.z = 0.0; fwrite(&dp,24,1,fil);
+			dp.x = 0.0; dp.y = 0.0; dp.z = 1.0; fwrite(&dp,24,1,fil);
+			dp.x = 0.0; dp.y =-1.0; dp.z = 0.0; fwrite(&dp,24,1,fil);
+			for(i=0;i<(VSID>>1)*(VSID>>1);i++)
+				fwrite(cast(void *)sptr[i+VSID*VSID],slng(sptr[i+VSID*VSID]),1,fil);
+			fclose(fil);
+		}
+		gmipnum = 1;
+	}
+
+}
+
+void setsphere (lpoint3d *hit, int hitrad, int dacol)
+{
+	alias void function(int*, int, int) da_modslab;
+	da_modslab modslab;
+	int i, x, y, xs, ys, zs, xe, ye, ze, sq;
+	float f, ff;
+
+	xs = max(hit.x-hitrad,0); xe = min(hit.x+hitrad,VSID-1);
+	ys = max(hit.y-hitrad,0); ye = min(hit.y+hitrad,VSID-1);
+	zs = max(hit.z-hitrad,0); ze = min(hit.z+hitrad,MAXZDIM-1);
+	vx5.minx = xs; vx5.maxx = xe+1;
+	vx5.miny = ys; vx5.maxy = ye+1;
+	vx5.minz = zs; vx5.maxz = ze+1;
+	if ((xs > xe) || (ys > ye) || (zs > ze)) return;
+
+	if (vx5.colfunc == sphcolfunc)
+	{
+		vx5.cen = hit.x+hit.y+hit.z;
+		vx5.daf = 1.f/(hitrad*sqrt(3.f));
+	}
+
+	if (hitrad >= SETSPHMAXRAD-1) hitrad = SETSPHMAXRAD-2;
+	if (dacol == -1) modslab = delslab; else modslab = insslab;
+
+	tempfloatbuf[0] = 0.0f;
+	static if(false)
+	{
+			//Totally unoptimized
+		for(i=1;i<=hitrad;i++) tempfloatbuf[i] = pow(cast(float)i,vx5.curpow);
+	} else
+	{
+		tempfloatbuf[1] = 1.0f;
+		for(i=2;i<=hitrad;i++)
+		{
+			if (!factr[i][0]) tempfloatbuf[i] = exp(logint[i]*vx5.curpow);
+			else tempfloatbuf[i] = tempfloatbuf[factr[i][0]]*tempfloatbuf[factr[i][1]];
+		}
+	}
+	*cast(int *)&tempfloatbuf[hitrad+1] = 0x7f7fffff; //3.4028235e38f; //Highest float
+
+	sq = 0; //pow(fabs(x-hit.x),vx5.curpow) + "y + "z < pow(vx5.currad,vx5.curpow)
+	for(y=ys;y<=ye;y++)
+	{
+		ff = tempfloatbuf[hitrad]-tempfloatbuf[labs(y-hit.y)];
+		if (*cast(int *)&ff <= 0) continue;
+		for(x=xs;x<=xe;x++)
+		{
+			f = ff-tempfloatbuf[labs(x-hit.x)]; if (*cast(int *)&f <= 0) continue;
+			while (*cast(int *)&tempfloatbuf[sq] <  *cast(int *)&f) sq++;
+			while (*cast(int *)&tempfloatbuf[sq] >= *cast(int *)&f) sq--;
+			modslab(scum2(x,y),max(hit.z-sq,zs),min(hit.z+sq+1,ze));
+		}
+	}
+	scum2finish();
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,dacol);
+}
+
+void setellipsoid (lpoint3d *hit, lpoint3d *hit2, int hitrad, int dacol, int bakit)
+{
+	alias void function(int*, int, int) da_modslab;
+	da_modslab modslab;
+	int x, y, xs, ys, zs, xe, ye, ze;
+	float a, b, c, d, e, f, g, h, r, t, u, Za, Zb, fx0, fy0, fz0, fx1, fy1, fz1;
+
+	xs = min(hit.x,hit2.x)-hitrad; xs = max(xs,0);
+	ys = min(hit.y,hit2.y)-hitrad; ys = max(ys,0);
+	zs = min(hit.z,hit2.z)-hitrad; zs = max(zs,0);
+	xe = max(hit.x,hit2.x)+hitrad; xe = min(xe,VSID-1);
+	ye = max(hit.y,hit2.y)+hitrad; ye = min(ye,VSID-1);
+	ze = max(hit.z,hit2.z)+hitrad; ze = min(ze,MAXZDIM-1);
+	vx5.minx = xs; vx5.maxx = xe+1;
+	vx5.miny = ys; vx5.maxy = ye+1;
+	vx5.minz = zs; vx5.maxz = ze+1;
+	if ((xs > xe) || (ys > ye) || (zs > ze))
+		{ if (bakit) voxbackup(xs,ys,xs,ys,bakit); return; }
+
+	fx0 = cast(float)hit.x; fy0 = cast(float)hit.y; fz0 = cast(float)hit.z;
+	fx1 = cast(float)hit2.x; fy1 = cast(float)hit2.y; fz1 = cast(float)hit2.z;
+
+	r = (fx1-fx0)*(fx1-fx0) + (fy1-fy0)*(fy1-fy0) + (fz1-fz0)*(fz1-fz0);
+	r = sqrt(cast(float)hitrad*cast(float)hitrad + r*.25);
+	c = fz0*fz0 - fz1*fz1; d = r*r*-4; e = d*4;
+	f = c*c + fz1*fz1 * e; g = c + c; h = (fz1-fz0)*2; c = c*h - fz1*e;
+	Za = -h*h - e; if (Za <= 0) { if (bakit) voxbackup(xs,ys,xs,ys,bakit); return; }
+	u = 1 / Za;
+
+	if (vx5.colfunc == jitcolfunc) vx5.amount = 0x70707;
+
+	if (dacol == -1) modslab = delslab; else modslab = insslab;
+
+	if (bakit) voxbackup(xs,ys,xe+1,ye+1,bakit);
+
+	for(y=ys;y<=ye;y++)
+		for(x=xs;x<=xe;x++)
+		{
+			a = (x-fx0)*(x-fx0) + (y-fy0)*(y-fy0);
+			b = (x-fx1)*(x-fx1) + (y-fy1)*(y-fy1);
+			t = a-b+d; Zb = t*h + c;
+			t = ((t+g)*t + b*e + f)*Za + Zb*Zb; if (t <= 0) continue;
+			t = sqrt(t);
+			ftol((Zb - t)*u,&zs); if (zs < 0) zs = 0;
+			ftol((Zb + t)*u,&ze); if (ze > MAXZDIM) ze = MAXZDIM;
+			modslab(scum2(x,y),zs,ze);
+		}
+	scum2finish();
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,dacol);
+}
+
+/**
+*	Draws a cylinder, given: 2 points, a radius, and a color
+*	Code mostly optimized - original code from CYLINDER.BAS:drawcylinder
+*/
+void setcylinder (lpoint3d* p0, lpoint3d* p1, int cr, int dacol, int bakit)
+{
+	alias void function(int*, int, int) da_modslab;
+	da_modslab modslab;
+
+	float t, ax, ay, az, bx, by, bz, cx, cy, cz, ux, uy, uz, vx, vy, vz;
+	float Za, Zb, Zc, tcr, xxyy, rcz, rZa;
+	float fx, fxi, xof, vx0, vy0, vz0, vz0i, vxo, vyo, vzo;
+	int i, j, ix, iy, ix0, ix1, iz0, iz1, minx, maxx, miny, maxy;
+	int x0, y0, z0, x1, y1, z1;
+
+		//Map generic cylinder into unit space:  (0,0,0), (0,0,1), cr = 1
+		//   x*x + y*y < 1, z >= 0, z < 1
+	if (p0.z > p1.z)
+	{
+		x0 = p1.x; y0 = p1.y; z0 = p1.z;
+		x1 = p0.x; y1 = p0.y; z1 = p0.z;
+	}
+	else
+	{
+		x0 = p0.x; y0 = p0.y; z0 = p0.z;
+		x1 = p1.x; y1 = p1.y; z1 = p1.z;
+	}
+
+	xxyy = cast(float)((x1-x0)*(x1-x0)+(y1-y0)*(y1-y0));
+	t = xxyy + cast(float)(z1-z0)*(z1-z0);
+	if ((t == 0) || (cr == 0))
+	{
+		vx5.minx = x0; vx5.maxx = x0+1;
+		vx5.miny = y0; vx5.maxy = y0+1;
+		vx5.minz = z0; vx5.maxz = z0+1;
+		if (bakit) voxbackup(x0,y0,x0,y0,bakit);
+		return;
+	}
+	t = 1 / t; cx = (cast(float)(x1-x0))*t; cy = (cast(float)(y1-y0))*t; cz = (cast(float)(z1-z0))*t;
+	t = sqrt(t); ux = (cast(float)(x1-x0))*t; uy = (cast(float)(y1-y0))*t; uz = (cast(float)(z1-z0))*t;
+
+	if (vx5.colfunc == jitcolfunc) vx5.amount = 0x70707;
+
+	if (dacol == -1) modslab = delslab; else modslab = insslab;
+
+	if (xxyy == 0)
+	{
+		iz0 = max(z0,0); iz1 = min(z1,MAXZDIM);
+		minx = max(x0-cr,0); maxx = min(x0+cr,VSID-1);
+		miny = max(y0-cr,0); maxy = min(y0+cr,VSID-1);
+
+		vx5.minx = minx; vx5.maxx = maxx+1;
+		vx5.miny = miny; vx5.maxy = maxy+1;
+		vx5.minz = iz0; vx5.maxz = iz1;
+		if (bakit) voxbackup(minx,miny,maxx+1,maxy+1,bakit);
+
+		j = cr*cr;
+		for(iy=miny;iy<=maxy;iy++)
+		{
+			i = j-(iy-y0)*(iy-y0);
+			for(ix=minx;ix<=maxx;ix++)
+				if ((ix-x0)*(ix-x0) < i) modslab(scum2(ix,iy),iz0,iz1);
+		}
+		scum2finish();
+		updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,dacol);
+		return;
+	}
+
+	if (x0 < x1) { minx = x0; maxx = x1; } else { minx = x1; maxx = x0; }
+	if (y0 < y1) { miny = y0; maxy = y1; } else { miny = y1; maxy = y0; }
+	tcr = cr / sqrt(xxyy); vx = fabs(cast(float)(x1-x0))*tcr; vy = fabs(cast(float)(y1-y0))*tcr;
+	t = vx*uz + vy;
+	ftol(cast(float)minx-t,&minx); if (minx < 0) minx = 0;
+	ftol(cast(float)maxx+t,&maxx); if (maxx >= VSID) maxx = VSID-1;
+	t = vy*uz + vx;
+	ftol(cast(float)miny-t,&miny); if (miny < 0) miny = 0;
+	ftol(cast(float)maxy+t,&maxy); if (maxy >= VSID) maxy = VSID-1;
+
+	vx5.minx = minx; vx5.maxx = maxx+1;
+	vx5.miny = miny; vx5.maxy = maxy+1;
+	vx5.minz = z0-cr; vx5.maxz = z1+cr+1;
+	if (bakit) voxbackup(minx,miny,maxx+1,maxy+1,bakit);
+
+	vx = (fabs(ux) < fabs(uy)); vy = 1.0f-vx; vz = 0;
+	ax = uy*vz - uz*vy; ay = uz*vx - ux*vz; az = ux*vy - uy*vx;
+	t = 1.0 / (sqrt(ax*ax + ay*ay + az*az)*cr);
+	ax *= t; ay *= t; az *= t;
+	bx = ay*uz - az*uy; by = az*ux - ax*uz; bz = ax*uy - ay*ux;
+
+	Za = az*az + bz*bz; rZa = 1.0f / Za;
+	if (cz != 0) { rcz = 1.0f / cz; vz0i = -rcz*cx; }
+	if (y0 != y1)
+	{
+		t = 1.0f / (cast(float)(y1-y0)); fxi = (cast(float)(x1-x0))*t;
+		fx = (cast(float)miny-y0)*fxi + x0; xof = fabs(tcr*xxyy*t);
+	}
+	else { fx = cast(float)minx; fxi = 0.0; xof = cast(float)(maxx-minx); }
+
+	vy = cast(float)(miny-y0);
+	vxo = vy*ay - z0*az;
+	vyo = vy*by - z0*bz;
+	vzo = vy*cy - z0*cz;
+	for(iy=miny;iy<=maxy;iy++)
+	{
+		ftol(fx-xof,&ix0); if (ix0 < minx) ix0 = minx;
+		ftol(fx+xof,&ix1); if (ix1 > maxx) ix1 = maxx;
+		fx += fxi;
+
+		vx = cast(float)(ix0-x0);
+		vx0 = vx*ax + vxo; vxo += ay;
+		vy0 = vx*bx + vyo; vyo += by;
+		vz0 = vx*cx + vzo; vzo += cy;
+
+		if (cz != 0)   //(vx0 + vx1*t)ý + (vy0 + vy1*t)ý = 1
+		{
+			vz0 *= -rcz;
+			for(ix=ix0;ix<=ix1;ix++,vx0+=ax,vy0+=bx,vz0+=vz0i)
+			{
+				Zb = vx0*az + vy0*bz; Zc = vx0*vx0 + vy0*vy0 - 1;
+				t = Zb*Zb - Za*Zc; if (*cast(int *)&t <= 0) continue; t = sqrt(t);
+				ftol(max((-Zb-t)*rZa,vz0    ),&iz0); if (iz0 < 0) iz0 = 0;
+				ftol(min((-Zb+t)*rZa,vz0+rcz),&iz1); if (iz1 > MAXZDIM) iz1 = MAXZDIM;
+				modslab(scum2(ix,iy),iz0,iz1);
+			}
+		}
+		else
+		{
+			for(ix=ix0;ix<=ix1;ix++,vx0+=ax,vy0+=bx,vz0+=cx)
+			{
+				if (*cast(uint *)&vz0 >= 0x3f800000) continue; //vz0<0||vz0>=1
+				Zb = vx0*az + vy0*bz; Zc = vx0*vx0 + vy0*vy0 - 1;
+				t = Zb*Zb - Za*Zc; if (*cast(int *)&t <= 0) continue; t = sqrt(t);
+				ftol((-Zb-t)*rZa,&iz0); if (iz0 < 0) iz0 = 0;
+				ftol((-Zb+t)*rZa,&iz1); if (iz1 > MAXZDIM) iz1 = MAXZDIM;
+				modslab(scum2(ix,iy),iz0,iz1);
+			}
+		}
+	}
+	scum2finish();
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,dacol);
+}
+
+/**
+*	Draws a rectangle, given: 2 points as opposite corners, and a color
+*/
+void setrect (lpoint3d *hit, lpoint3d *hit2, int dacol)
+{
+	int x, y, xs, ys, zs, xe, ye, ze;
+
+		//WARNING: do NOT use lbound because 'c' not guaranteed to be >= 'b'
+	xs = max(min(hit.x,hit2.x),0); xe = min(max(hit.x,hit2.x),VSID-1);
+	ys = max(min(hit.y,hit2.y),0); ye = min(max(hit.y,hit2.y),VSID-1);
+	zs = max(min(hit.z,hit2.z),0); ze = min(max(hit.z,hit2.z),MAXZDIM-1);
+	vx5.minx = xs; vx5.maxx = xe+1;
+	vx5.miny = ys; vx5.maxy = ye+1;
+	vx5.minz = zs; vx5.maxz = ze+1;
+	if ((xs > xe) || (ys > ye) || (zs > ze)) return;
+
+	if (vx5.colfunc == jitcolfunc) vx5.amount = 0x70707;
+
+	ze++;
+	if (dacol == -1)
+	{
+		for(y=ys;y<=ye;y++)
+			for(x=xs;x<=xe;x++)
+				delslab(scum2(x,y),zs,ze);
+	}
+	else
+	{
+		for(y=ys;y<=ye;y++)
+			for(x=xs;x<=xe;x++)
+				insslab(scum2(x,y),zs,ze);
+	}
+	scum2finish();
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,dacol);
+}
+
+/**
+*	Does CSG using pre-sorted spanlist
+*/
+void setspans (vspans* lst, int lstnum, lpoint3d* offs, int dacol)
+{
+	alias void function(int*, int, int) da_modslab;
+	da_modslab modslab;
+
+	int i, j, x, y, z0, z1;
+	int *lptr;
+	ubyte ox, oy;
+
+	if (lstnum <= 0) return;
+	if (dacol == -1) modslab = delslab; else modslab = insslab;
+	vx5.minx = vx5.maxx = (cast(int)lst[0].x)+offs.x;
+	vx5.miny = (cast(int)lst[       0].y)+offs.y;
+	vx5.maxy = (cast(int)lst[lstnum-1].y)+offs.y+1;
+	vx5.minz = vx5.maxz = (cast(int)lst[0].z0)+offs.z;
+
+	i = 0; goto in2setlist;
+	do
+	{
+		if ((ox != lst[i].x) || (oy != lst[i].y))
+		{
+in2setlist:;
+			ox = lst[i].x; oy = lst[i].y;
+			x = (cast(int)lst[i].x)+offs.x;
+			y = (cast(int)lst[i].y)+offs.y;
+				  if (x < vx5.minx) vx5.minx = x;
+			else if (x > vx5.maxx) vx5.maxx = x;
+			lptr = scum2(x,y);
+		}
+		if ((x|y)&(~(VSID-1))) { i++; continue; }
+		z0 = (cast(int)lst[i].z0)+offs.z;   if (z0 < 0) z0 = 0;
+		z1 = (cast(int)lst[i].z1)+offs.z+1; if (z1 > MAXZDIM) z1 = MAXZDIM;
+		if (z0 < vx5.minz) vx5.minz = z0;
+		if (z1 > vx5.maxz) vx5.maxz = z1;
+		modslab(lptr,z0,z1);
+		i++;
+	} while (i < lstnum);
+	vx5.maxx++; vx5.maxz++;
+	if (vx5.minx < 0) vx5.minx = 0;
+	if (vx5.miny < 0) vx5.miny = 0;
+	if (vx5.maxx > VSID) vx5.maxx = VSID;
+	if (vx5.maxy > VSID) vx5.maxy = VSID;
+
+	scum2finish();
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,dacol);
+}
+
+void setheightmap (const ubyte* hptr, int hpitch, int hxdim, int hydim,
+						 int x0, int y0, int x1, int y1)
+{
+	int x, y, su, sv, u, v;
+
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 > VSID) x1 = VSID;
+	if (y1 > VSID) y1 = VSID;
+	vx5.minx = x0; vx5.maxx = x1;
+	vx5.miny = y0; vx5.maxy = y1;
+	vx5.minz = 0; vx5.maxz = MAXZDIM;
+	if ((x0 >= x1) || (y0 >= y1)) return;
+
+	su = x0%hxdim; sv = y0%hydim;
+	for(y=y0,v=sv;y<y1;y++)
+	{
+		for(x=x0,u=su;x<x1;x++)
+		{
+			insslab(scum2(x,y),hptr[v*hpitch+u],MAXZDIM);
+			u++; if (u >= hxdim) u = 0;
+		}
+		v++; if (v >= hydim) v = 0;
+	}
+	scum2finish();
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,0);
+}
+
+static int[VSID] min0, max0; //MAXY
+static int[VSID] min1, max1; //MAXX
+static int[VSID] min2, max2; //MAXY
+
+static void canseerange (point3d* p0, point3d* p1)
+{
+	lpoint3d a, c, d, p, i;
+	point3d f, g;
+	int cnt, j;
+
+	ftol(p0.x-0.5,&a.x); ftol(p0.y-0.5,&a.y); ftol(p0.z-0.5,&a.z);
+	ftol(p1.x-0.5,&c.x); ftol(p1.y-0.5,&c.y); ftol(p1.z-0.5,&c.z);
+	cnt = 0;
+
+		  if (c.x <  a.x) { d.x = -1; f.x = p0.x-a.x;   g.x = (p0.x-p1.x)*1024; cnt += a.x-c.x; }
+	else if (c.x != a.x) { d.x =  1; f.x = a.x+1-p0.x; g.x = (p1.x-p0.x)*1024; cnt += c.x-a.x; }
+	else f.x = g.x = 0;
+		  if (c.y <  a.y) { d.y = -1; f.y = p0.y-a.y;   g.y = (p0.y-p1.y)*1024; cnt += a.y-c.y; }
+	else if (c.y != a.y) { d.y =  1; f.y = a.y+1-p0.y; g.y = (p1.y-p0.y)*1024; cnt += c.y-a.y; }
+	else f.y = g.y = 0;
+		  if (c.z <  a.z) { d.z = -1; f.z = p0.z-a.z;   g.z = (p0.z-p1.z)*1024; cnt += a.z-c.z; }
+	else if (c.z != a.z) { d.z =  1; f.z = a.z+1-p0.z; g.z = (p1.z-p0.z)*1024; cnt += c.z-a.z; }
+	else f.z = g.z = 0;
+
+	ftol(f.x*g.z - f.z*g.x,&p.x); ftol(g.x,&i.x);
+	ftol(f.y*g.z - f.z*g.y,&p.y); ftol(g.y,&i.y);
+	ftol(f.y*g.x - f.x*g.y,&p.z); ftol(g.z,&i.z);
+	for(;cnt;cnt--)
+	{
+			//use a.x, a.y, a.z
+		if (a.x < min0[a.y]) min0[a.y] = a.x;
+		if (a.x > max0[a.y]) max0[a.y] = a.x;
+		if (a.z < min1[a.x]) min1[a.x] = a.z;
+		if (a.z > max1[a.x]) max1[a.x] = a.z;
+		if (a.z < min2[a.y]) min2[a.y] = a.z;
+		if (a.z > max2[a.y]) max2[a.y] = a.z;
+
+		if (((p.x|p.y) >= 0) && (a.z != c.z)) { a.z += d.z; p.x -= i.x; p.y -= i.y; }
+		else if ((p.z >= 0) && (a.x != c.x))  { a.x += d.x; p.x += i.z; p.z -= i.y; }
+		else                                  { a.y += d.y; p.y += i.z; p.z += i.x; }
+	}
+}
+
+void settri (point3d* p0, point3d* p1, point3d* p2, int bakit)
+{
+	point3d n;
+	float f, x0, y0, z0, x1, y1, z1, rx, ry, k0, k1;
+	int i, x, y, z, iz0, iz1, minx, maxx, miny, maxy;
+
+	if (p0.x < p1.x) { x0 = p0.x; x1 = p1.x; } else { x0 = p1.x; x1 = p0.x; }
+	if (p2.x < x0) x0 = p2.x;
+	if (p2.x > x1) x1 = p2.x;
+	if (p0.y < p1.y) { y0 = p0.y; y1 = p1.y; } else { y0 = p1.y; y1 = p0.y; }
+	if (p2.y < y0) y0 = p2.y;
+	if (p2.y > y1) y1 = p2.y;
+	if (p0.z < p1.z) { z0 = p0.z; z1 = p1.z; } else { z0 = p1.z; z1 = p0.z; }
+	if (p2.z < z0) z0 = p2.z;
+	if (p2.z > z1) z1 = p2.z;
+
+	ftol(x0-.5,&minx); ftol(y0-.5,&miny);
+	ftol(x1-.5,&maxx); ftol(y1-.5,&maxy);
+	vx5.minx = minx; vx5.maxx = maxx+1;
+	vx5.miny = miny; vx5.maxy = maxy+1;
+	ftol(z0-.5,&vx5.minz); ftol(z1+.5,&vx5.maxz);
+	if (bakit) voxbackup(minx,miny,maxx+1,maxy+1,bakit);
+
+	for(i=miny;i<=maxy;i++) { min0[i] = 0x7fffffff; max0[i] = 0x80000000; }
+	for(i=minx;i<=maxx;i++) { min1[i] = 0x7fffffff; max1[i] = 0x80000000; }
+	for(i=miny;i<=maxy;i++) { min2[i] = 0x7fffffff; max2[i] = 0x80000000; }
+
+	canseerange(p0,p1);
+	canseerange(p1,p2);
+	canseerange(p2,p0);
+
+	n.x = (p1.z-p0.z)*(p2.y-p1.y) - (p1.y-p0.y) * (p2.z-p1.z);
+	n.y = (p1.x-p0.x)*(p2.z-p1.z) - (p1.z-p0.z) * (p2.x-p1.x);
+	n.z = (p1.y-p0.y)*(p2.x-p1.x) - (p1.x-p0.x) * (p2.y-p1.y);
+	f = 1.0 / sqrt(n.x*n.x + n.y*n.y + n.z*n.z); if (n.z < 0) f = -f;
+	n.x *= f; n.y *= f; n.z *= f;
+
+	if (n.z > .01)
+	{
+		f = -1.0 / n.z; rx = n.x*f; ry = n.y*f;
+		k0 = ((n.x>=0)-p0.x)*rx + ((n.y>=0)-p0.y)*ry - ((n.z>=0)-p0.z) + .5;
+		k1 = ((n.x< 0)-p0.x)*rx + ((n.y< 0)-p0.y)*ry - ((n.z< 0)-p0.z) - .5;
+	}
+	else { rx = 0; ry = 0; k0 = -2147000000.0; k1 = 2147000000.0; }
+
+	for(y=miny;y<=maxy;y++)
+		for(x=min0[y];x<=max0[y];x++)
+		{
+			f = cast(float)x*rx + cast(float)y*ry; ftol(f+k0,&iz0); ftol(f+k1,&iz1);
+			if (iz0 < min1[x]) iz0 = min1[x];
+			if (iz1 > max1[x]) iz1 = max1[x];
+			if (iz0 < min2[y]) iz0 = min2[y];
+			if (iz1 > max2[y]) iz1 = max2[y];
+
+				//set: (x,y,iz0) to (x,y,iz1) (inclusive)
+			insslab(scum2(x,y),iz0,iz1+1);
+	}
+	scum2finish();
+	updatebbox(vx5.minx,vx5.miny,vx5.minz,vx5.maxx,vx5.maxy,vx5.maxz,0);
+}
+
+static int tripind[24] = [0,4,1,5,2,6,3,7,0,2,1,3,4,6,5,7,0,1,2,3,4,5,6,7];
+/**
+*	Known problems:
+*	1. Need to test faces for intersections on p1<.p2 line (not just edges)
+*	2. Doesn't guarantee that hit point/line is purely air (but very close)
+*	3. Piescan is more useful for parts of rope code :/
+*/
+int triscan (point3d* p0, point3d* p1, point3d* p2, point3d* hit, lpoint3d* lhit)
+{
+	point3d n, cp2;
+	point3d d[8];
+	float f, g, x0, x1, y0, y1, rx, ry, k0, k1, fx, fy, fz;
+	float pval[8];
+	int i, j, k, x, y, z, iz0, iz1, minx, maxx, miny, maxy, didhit;
+
+	didhit = 0;
+
+	if (p0.x < p1.x) { x0 = p0.x; x1 = p1.x; } else { x0 = p1.x; x1 = p0.x; }
+	if (p2.x < x0) x0 = p2.x;
+	if (p2.x > x1) x1 = p2.x;
+	if (p0.y < p1.y) { y0 = p0.y; y1 = p1.y; } else { y0 = p1.y; y1 = p0.y; }
+	if (p2.y < y0) y0 = p2.y;
+	if (p2.y > y1) y1 = p2.y;
+	ftol(x0-.5,&minx); ftol(y0-.5,&miny);
+	ftol(x1-.5,&maxx); ftol(y1-.5,&maxy);
+	for(i=miny;i<=maxy;i++) { min0[i] = 0x7fffffff; max0[i] = 0x80000000; }
+	for(i=minx;i<=maxx;i++) { min1[i] = 0x7fffffff; max1[i] = 0x80000000; }
+	for(i=miny;i<=maxy;i++) { min2[i] = 0x7fffffff; max2[i] = 0x80000000; }
+
+	canseerange(p0,p1);
+	canseerange(p1,p2);
+	canseerange(p2,p0);
+
+	n.x = (p1.z-p0.z)*(p2.y-p1.y) - (p1.y-p0.y) * (p2.z-p1.z);
+	n.y = (p1.x-p0.x)*(p2.z-p1.z) - (p1.z-p0.z) * (p2.x-p1.x);
+	n.z = (p1.y-p0.y)*(p2.x-p1.x) - (p1.x-p0.x) * (p2.y-p1.y);
+	f = 1.0 / sqrt(n.x*n.x + n.y*n.y + n.z*n.z); if (n.z < 0) f = -f;
+	n.x *= f; n.y *= f; n.z *= f;
+
+	if (n.z > .01)
+	{
+		f = -1.0 / n.z; rx = n.x*f; ry = n.y*f;
+		k0 = ((n.x>=0)-p0.x)*rx + ((n.y>=0)-p0.y)*ry - ((n.z>=0)-p0.z) + .5;
+		k1 = ((n.x< 0)-p0.x)*rx + ((n.y< 0)-p0.y)*ry - ((n.z< 0)-p0.z) - .5;
+	}
+	else { rx = 0; ry = 0; k0 = -2147000000.0; k1 = 2147000000.0; }
+
+	cp2.x = p2.x; cp2.y = p2.y; cp2.z = p2.z;
+
+	for(y=miny;y<=maxy;y++)
+		for(x=min0[y];x<=max0[y];x++)
+		{
+			f = cast(float)x*rx + cast(float)y*ry; ftol(f+k0,&iz0); ftol(f+k1,&iz1);
+			if (iz0 < min1[x]) iz0 = min1[x];
+			if (iz1 > max1[x]) iz1 = max1[x];
+			if (iz0 < min2[y]) iz0 = min2[y];
+			if (iz1 > max2[y]) iz1 = max2[y];
+			for(z=iz0;z<=iz1;z++)
+			{
+				if (!isvoxelsolid(x,y,z)) continue;
+
+				for(i=0;i<8;i++)
+				{
+					d[i].x = cast(float)(( i    &1)+x);
+					d[i].y = cast(float)(((i>>1)&1)+y);
+					d[i].z = cast(float)(((i>>2)&1)+z);
+					pval[i] = (d[i].x-p0.x)*n.x + (d[i].y-p0.y)*n.y + (d[i].z-p0.z)*n.z;
+				}
+				for(i=0;i<24;i+=2)
+				{
+					j = tripind[i+0];
+					k = tripind[i+1];
+					if (((*cast(int *)&pval[j])^(*cast(int *)&pval[k])) < 0)
+					{
+						f = pval[j]/(pval[j]-pval[k]);
+						fx = (d[k].x-d[j].x)*f + d[j].x;
+						fy = (d[k].y-d[j].y)*f + d[j].y;
+						fz = (d[k].z-d[j].z)*f + d[j].z;
+
+							//         (p0.x,p0.y,p0.z)
+							//             _|     |_
+							//           _|     .   |_
+							//         _|  (fx,fy,fz) |_
+							//       _|                 |_
+							//(p1.x,p1.y,p1.z)-.----(cp2.x,cp2.y,cp2.z)
+	
+						if ((fabs(n.z) > fabs(n.x)) && (fabs(n.z) > fabs(n.y)))
+						{ //x,y
+						  // ix = p1.x + (cp2.x-p1.x)*t;
+						  // iy = p1.y + (cp2.y-p1.y)*t;
+						  //(iz = p1.z + (cp2.z-p1.z)*t;)
+						  // ix = p0.x + (fx-p0.x)*u;
+						  // iy = p0.y + (fy-p0.y)*u;
+						  // (p1.x-cp2.x)*t + (fx-p0.x)*u = p1.x-p0.x;
+						  // (p1.y-cp2.y)*t + (fy-p0.y)*u = p1.y-p0.y;
+	
+							f = (p1.x-cp2.x)*(fy-p0.y) - (p1.y-cp2.y)*(fx-p0.x);
+							if ((*cast(int *)&f) == 0) continue;
+							f = 1.0 / f;
+							g = ((p1.x-cp2.x)*(p1.y-p0.y) - (p1.y-cp2.y)*(p1.x-p0.x))*f;
+							//NOTE: The following trick assumes g not * or / by f!
+							//if (((*cast(int *)&g)-(*cast(int *)&f))^(*cast(int *)&f)) >= 0) continue;
+							if ((*cast(int *)&g) < 0x3f800000) continue;
+							g = ((p1.x-p0.x)*(fy-p0.y) - (p1.y-p0.y)*(fx-p0.x))*f;
+						}
+						else if (fabs(n.y) > fabs(n.x))
+						{ //x,z
+							f = (p1.x-cp2.x)*(fz-p0.z) - (p1.z-cp2.z)*(fx-p0.x);
+							if ((*cast(int *)&f) == 0) continue;
+							f = 1.0 / f;
+							g = ((p1.x-cp2.x)*(p1.z-p0.z) - (p1.z-cp2.z)*(p1.x-p0.x))*f;
+							if ((*cast(int *)&g) < 0x3f800000) continue;
+							g = ((p1.x-p0.x)*(fz-p0.z) - (p1.z-p0.z)*(fx-p0.x))*f;
+						}
+						else
+						{ //y,z
+							f = (p1.y-cp2.y)*(fz-p0.z) - (p1.z-cp2.z)*(fy-p0.y);
+							if ((*cast(int *)&f) == 0) continue;
+							f = 1.0 / f;
+							g = ((p1.y-cp2.y)*(p1.z-p0.z) - (p1.z-cp2.z)*(p1.y-p0.y))*f;
+							if ((*cast(int *)&g) < 0x3f800000) continue;
+							g = ((p1.y-p0.y)*(fz-p0.z) - (p1.z-p0.z)*(fy-p0.y))*f;
+						}
+						if ((*cast(uint *)&g) >= 0x3f800000) continue;
+						(hit.x) = fx; (hit.y) = fy; (hit.z) = fz;
+						(lhit.x) = x; (lhit.y) = y; (lhit.z) = z; didhit = 1;
+						(cp2.x) = (cp2.x-p1.x)*g + p1.x;
+						(cp2.y) = (cp2.y-p1.y)*g + p1.y;
+						(cp2.z) = (cp2.z-p1.z)*g + p1.z;
+					}
+				}
+			}
+		}
+	return(didhit);
+}
+
+// ------------------------ CONVEX 3D HULL CODE BEGINS ------------------------
+
+enum MAXPOINTS = 256*2; //Leave the *2 here for safety!
+point3d nm[MAXPOINTS*2+2];
+float nmc[MAXPOINTS*2+2];
+int tri[MAXPOINTS*8+8];
+int lnk[MAXPOINTS*8+8];
+int tricnt;
+ubyte umost[VSID*VSID];
+ubyte dmost[VSID*VSID];
+
+// line 6700 initetrasid
